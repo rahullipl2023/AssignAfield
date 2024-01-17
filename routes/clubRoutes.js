@@ -1,0 +1,16 @@
+const express = require('express');
+const clubController = require('../controllers/clubController');
+const { uploadClubProfileAndUserProfile } = require('../uploads/upload');
+const { verifyToken } = require('../middlewares/authMiddleware')
+const router = express.Router();
+
+router.post('/register-club', uploadClubProfileAndUserProfile, clubController.createClub);
+router.post('/club-login', clubController.clubLogin);
+router.get('/clubs', clubController.getAllClubs);
+router.get('/clubs/:id',verifyToken, clubController.getClubById);
+router.put('/clubs/:id', verifyToken, clubController.updateClubById);
+router.delete('/clubs/:id', verifyToken, clubController.deleteClubById);
+router.get('/getClubWithUser/:club_id',verifyToken, clubController.getClubWithUser);
+
+module.exports = router;
+ 
