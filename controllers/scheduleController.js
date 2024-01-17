@@ -18,7 +18,7 @@ async function updateSchedule() {
 
     // Your scheduling logic goes here
     // This is a placeholder; you need to implement your scheduling algorithm based on the given INPUT FIELDS and RESTRICTIONS
-
+    
     // For example, you can iterate through coaches, teams, and fields to generate practice schedules
     for (const coach of coaches) { 
       for (const team of teams) {
