@@ -10,7 +10,7 @@ const authMiddleware = require('./middlewares/authMiddleware');
 const dotenv = require('dotenv');
 const { MONGO_URI, PORT } = require('./config/database.js');
 const mongoose = require('mongoose');
-
+const { updateSchedule } = require('./controllers/scheduleController.js')
 dotenv.config();
 
 // const app = express();
@@ -58,5 +58,18 @@ app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).send('Something went wrong!');
 });
+
+async function someFunction() {
+  try {
+    const scheduleUpdateResult = await updateSchedule();
+    console.log(scheduleUpdateResult); // Log the result returned by updateSchedule
+  } catch (error) {
+    console.error("Error updating schedule:", error);
+  }
+}
+
+someFunction();
+
+
 
 module.exports = app;
