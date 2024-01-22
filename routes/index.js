@@ -7,6 +7,7 @@ const coachRouter = require('./coach');
 const fieldRouter = require('./field');
 const authRouter = require('./auth');
 const clubRoutes = require('./clubRoutes');
+const dashboardRoutes = require('./dashboard')
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
@@ -19,5 +20,6 @@ router.use('/coach', coachRouter);
 router.use('/field', fieldRouter);
 router.use('/auth', authRouter);
 router.use('/api/v1', clubRoutes);
+router.use('/dashboard', dashboardRoutes);
 
 module.exports = router;
