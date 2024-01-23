@@ -3,7 +3,7 @@ const bcrypt = require("bcrypt");
 
 exports.createSubUser = async (req, res) => {
   try {
-    let { club_id, first_name, last_name, email, phone, password, is_admin } =
+    let { club_id, first_name, last_name, email, phone, password, is_admin, role } =
       req.body;
 
     let userProfileFile = req.files["user_profile"]
@@ -25,6 +25,7 @@ exports.createSubUser = async (req, res) => {
         phone,
         profile_picture: userProfileFile ? userProfileFile.filename : "",
         password: hashedPassword,
+        role,
         is_admin,
         club_id,
       });

@@ -99,6 +99,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true },
   phone: String,
   profile_picture: String,
+  role : Number,
   password: { type: String, required: true },
   is_admin: { type: Boolean, default: false },
   is_active: { type: Boolean, default: true },
