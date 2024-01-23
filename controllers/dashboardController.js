@@ -38,12 +38,13 @@ exports.dashboardDetailsByClubId = async (req, res) => {
 
     // Return the response with dashboard details
     return res.status(200).json({
+      success : true, 
       message: "Dashboard Details",
       dashboardDetails: combinedDetails,
     });
   } catch (error) {
     console.error("Error fetching Dashboard Details:", error);
     // Log detailed error information or provide specific error messages
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ auccess : false, error: "Internal Server Error" });
   }
 };

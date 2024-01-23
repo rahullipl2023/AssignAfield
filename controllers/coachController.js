@@ -37,16 +37,17 @@ exports.createCoach = async (req, res) => {
     });
 
     if (!createCoach) {
-      return res.status(400).json({ msg: "Error creating the coach" });
+      return res.status(400).json({ success : false, msg: "Error creating the coach" });
     } else {
       return res.status(201).json({
-        msg: `Successfully created ${first_name}`,
+        success : true,
+        message: `Successfully created ${first_name}`,
         coach: createCoach,
       });
     }
   } catch (error) {
     console.log("Error in create coach:", error);
-    return res.status(500).json({ message: "Server Error" });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -84,16 +85,17 @@ exports.updateCoach = async (req, res) => {
     );
 
     if (!updatedCoach) {
-      return res.status(404).json({ msg: "Coach not found" });
+      return res.status(404).json({ success : false, msg: "Coach not found" });
     }
 
     return res.status(200).json({
+      success : true,
       msg: `Successfully updated ${first_name}`,
       coach: updatedCoach,
     });
   } catch (error) {
     console.error("Error updating coach:", error);
-    return res.status(500).json({ message: "Server Error" });
+    return res.status(500).json({ success: false,  message: "Server Error" });
   }
 };
 
@@ -113,16 +115,17 @@ exports.softDeleteCoach = async (req, res) => {
     );
 
     if (!softDeletedCoach) {
-      return res.status(404).json({ msg: "Coach not found" });
+      return res.status(404).json({ success : false, msg: "Coach not found" });
     }
 
     return res.status(200).json({
+      success : true,
       msg: `Successfully soft deleted ${softDeletedCoach.first_name}`,
       coach: softDeletedCoach,
     });
   } catch (error) {
     console.error("Error soft deleting coach:", error);
-    return res.status(500).json({ message: "Server Error" });
+    return res.status(500).json({ success : true, message: "Server Error" });
   }
 };
 
@@ -139,16 +142,17 @@ exports.getCoachesByClubId = async (req, res) => {
     if (!coaches || coaches.length === 0) {
       return res
         .status(404)
-        .json({ msg: "No active coaches found for the club" });
+        .json({ success : false, msg: "No active coaches found for the club" });
     }
 
     return res.status(200).json({
+      success : true,
       message: "Coaches list for the club",
       coaches: coaches,
     });
   } catch (error) {
     console.error("Error fetching coaches by club ID:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ success : false, error: "Internal Server Error" });
   }
 };
 
@@ -159,24 +163,24 @@ exports.viewCoachById = async (req, res) => {
     const coach = await Coach.findById(coachId);
 
     if (!coach) {
-      return res.status(404).json({ msg: "Coach not found" });
+      return res.status(404).json({ success : false, msg: "Coach not found" });
     }
 
     return res.status(200).json({
-      status: true,
+      success: true,
       message: "Coach details",
       coach,
     });
   } catch (error) {
     console.error("Error fetching coach by coach ID:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ success : false,  error: "Internal Server Error" });
   }
 };
 
 exports.importCoaches = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ msg: "No file uploaded" });
+      return res.status(400).json({ success : false, msg: "No file uploaded" });
     }
 
     let { club_id } = req.params;
@@ -185,7 +189,7 @@ exports.importCoaches = async (req, res) => {
 
     // Check if the buffer is a valid Buffer instance
     if (!Buffer.isBuffer(file.buffer)) {
-      return res.status(400).json({ msg: "Invalid file buffer" });
+      return res.status(400).json({ success: false, msg: "Invalid file buffer" });
     }
 
     // Create a temporary file path
@@ -247,12 +251,13 @@ exports.importCoaches = async (req, res) => {
     );
 
     return res.status(201).json({
-      msg: `Successfully imported coaches`,
+      success : true,
+      message: `Successfully imported coaches`,
       coaches: createdCoaches,
     });
   } catch (error) {
     console.error("Error in import coaches:", error);
-    return res.status(500).json({ message: "Server Error" });
+    return res.status(500).json({ success : false,  message: "Server Error" });
   }
 };
 
@@ -263,7 +268,7 @@ exports.activateOrDeactivateCoach = async (req, res) => {
 
     // Validate is_active value
     if (is_active === undefined || typeof is_active !== 'boolean') {
-      return res.status(400).json({ msg: 'Invalid is_active value' });
+      return res.status(400).json({ success : false, msg: 'Invalid is_active value' });
     }
 
     // Update Coach document
@@ -274,12 +279,12 @@ exports.activateOrDeactivateCoach = async (req, res) => {
     );
 
     if (!updatedCoach) {
-      return res.status(404).json({ msg: 'Coach not found' });
+      return res.status(404).json({ success : false, message: 'Coach not found' });
     }
     let status = is_active == true ? 'activated' : 'deactivated'
-    return res.status(200).json({ msg: `Coach ${status} successfully`, coach: updatedCoach });
+    return res.status(200).json({ success : true, message: `Coach ${status} successfully`, coach: updatedCoach });
   } catch (error) {
     console.error('Error in activateCoach:', error);
-    return res.status(500).json({ msg: 'Server Error' });
+    return res.status(500).json({ success : false , message: 'Server Error' });
   }
 };

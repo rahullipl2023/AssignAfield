@@ -7,6 +7,7 @@ const clubSchema = new mongoose.Schema({
   club_name: { type: String, required: true },
   sub_user: String,
   number_of_teams: Number,
+  number_of_members : Number,
   address: String,
   contact: String,
   club_profile: String,

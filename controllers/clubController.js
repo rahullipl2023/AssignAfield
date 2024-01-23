@@ -6,7 +6,7 @@ exports.createClub = async (req, res) => {
   const {
     club_name,
     sub_user,
-    number_of_teams,
+    number_of_members,
     address,
     contact,
     club_email,
@@ -22,18 +22,21 @@ exports.createClub = async (req, res) => {
 
   try {
     // Process uploaded files
-    let clubProfileFile = req.files['club_profile'] ? req.files['club_profile'][0] : null;
-    let profilePictureFile = req.files['profile_picture'] ? req.files['profile_picture'][0] : null;
+    let clubProfileFile = req.files["club_profile"]
+      ? req.files["club_profile"][0]
+      : null;
+    let profilePictureFile = req.files["profile_picture"]
+      ? req.files["profile_picture"][0]
+      : null;
 
-  
     // Create a new club
     const newClub = new Club({
       club_name,
       sub_user,
-      number_of_teams,
+      number_of_members,
       address,
       contact,
-      club_profile: clubProfileFile?clubProfileFile.filename:'',  // Update club_profile with the file path
+      club_profile: clubProfileFile ? clubProfileFile.filename : "", // Update club_profile with the file path
       club_email,
       time_off_start,
       time_off_end,
@@ -43,31 +46,43 @@ exports.createClub = async (req, res) => {
 
     const encryptedPassword = await bcrypt.hash(password, 10);
 
-    // Now that the club is created, use its _id to create the associated user
-    const newUser = new User({
-      first_name,
-      last_name,
-      email,
-      phone,
-      profile_picture: profilePictureFile?profilePictureFile.filename:'',  // Update profile_picture with the file path
-      password: encryptedPassword,
-      is_admin,
-      club_id: savedClub._id,
-    });
-    const savedUser = await newUser.save();
-    console.log("Club and User created successfully");
+    const findUser = await User.find({ email: email });
 
-    // Optionally, you can send a response back to the client
-    res.status(201).json({
-      message: "Club and User created successfully",
-      club: savedClub,
-      user: savedUser,
-    });
+    if (findUser.length > 0) {
+      // User with the given email already exists
+      res.status(400).json({
+        success: false,
+        message: "User email already exists",
+      });
+    } else {
+      // Now that the club is created, use its _id to create the associated user
+      const newUser = new User({
+        first_name,
+        last_name,
+        email,
+        phone,
+        profile_picture: profilePictureFile ? profilePictureFile.filename : "", // Update profile_picture with the file path
+        password: encryptedPassword,
+        is_admin,
+        club_id: savedClub._id,
+      });
+      const savedUser = await newUser.save();
+      console.log("Club and User created successfully");
+
+      // Optionally, you can send a response back to the client
+      res.status(201).json({
+        success: true,
+        message: "Club and User created successfully",
+        club: savedClub,
+        user: savedUser,
+      });
+    }
   } catch (error) {
     console.error("Error creating Club and User:", error);
 
     // Send an error response to the client
     res.status(500).json({
+      success: false,
       error: "Internal Server Error",
     });
   }
@@ -79,23 +94,28 @@ exports.clubLogin = async (req, res) => {
 
     const findUser = await User.findOne({ email });
     if (!findUser) {
-      return res.status(401).json({ message: "Invalid Email" });
+      return res.status(401).json({ success: false, message: "Invalid Email" });
     }
 
     const isValidPassword = bcrypt.compareSync(password, findUser.password);
     if (!isValidPassword) {
-      return res.status(401).json({ message: "Invalid Password!" });
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid Password!" });
     }
 
     const token = await generateToken(findUser);
-    console.log(token)
+    console.log(token);
     return res.status(200).json({
+      success: true,
+      message: "Logged in successfully",
       token: token,
       user: findUser,
     });
   } catch (error) {
     console.error("Login error:", error.message);
     return res.status(500).json({
+      success: false,
       message: "Server Error!",
     });
   }
@@ -105,9 +125,9 @@ exports.clubLogin = async (req, res) => {
 exports.getAllClubs = async (req, res) => {
   try {
     const clubs = await Club.find();
-    res.status(200).json(clubs);
+    res.status(200).json({ success: true, message: "Club details", clubs });
   } catch (error) {
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
 
@@ -116,11 +136,11 @@ exports.getClubById = async (req, res) => {
   try {
     const club = await Club.findById(req.params.id);
     if (!club) {
-      return res.status(404).json({ error: "Club not found" });
+      return res.status(404).json({ success: false, error: "Club not found" });
     }
-    res.status(200).json(club);
+    res.status(200).json({ success: true, message: "Club details", club });
   } catch (error) {
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
 
@@ -131,11 +151,13 @@ exports.updateClubById = async (req, res) => {
       new: true,
     });
     if (!updatedClub) {
-      return res.status(404).json({ error: "Club not found" });
+      return res.status(404).json({ success: false, error: "Club not found" });
     }
-    res.status(200).json(updatedClub);
+    res
+      .status(200)
+      .json({ success: true, message: "Club updated ", updatedClub });
   } catch (error) {
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
 
@@ -144,11 +166,11 @@ exports.deleteClubById = async (req, res) => {
   try {
     const deletedClub = await Club.findByIdAndDelete(req.params.id);
     if (!deletedClub) {
-      return res.status(404).json({ error: "Club not found" });
+      return res.status(404).json({ success: false, error: "Club not found" });
     }
-    res.status(204).send();
+    res.status(204).json({ success: true, message: "Club deleted " });
   } catch (error) {
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
 
@@ -157,20 +179,25 @@ exports.getClubWithUser = async (req, res) => {
     const clubId = req.params.club_id;
 
     // Find the user by club ID and populate the 'club_id' field
-    const clubWithUserDetails = await User.find({ club_id: clubId, deleted_at: { $in: [null, undefined] } });
+    const clubWithUserDetails = await User.find({
+      club_id: clubId,
+      deleted_at: { $in: [null, undefined] },
+    });
 
     if (!clubWithUserDetails || clubWithUserDetails.length === 0) {
-      return res.status(404).json({ error: "No active users found for the club" });
+      return res
+        .status(404)
+        .json({ success: true, error: "No active users found for the club" });
     }
 
     // Return the user information with club details
     res.status(200).json({
-      status: true,
+      success: true,
       message: "Club with user data",
       clubWithUserDetails,
     });
   } catch (error) {
     console.error("Error fetching user with club:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ success: true, error: "Internal Server Error" });
   }
 };

@@ -11,6 +11,7 @@ const dotenv = require('dotenv');
 const { MONGO_URI, PORT } = require('./config/database.js');
 const mongoose = require('mongoose');
 const { updateSchedule } = require('./controllers/scheduleController.js')
+const cors = require('cors'); 
 dotenv.config();
 
 // const app = express();
@@ -28,6 +29,8 @@ const indexRouter = require('./routes/index');
 require('./config/passportConfig');
 
 const app = express();
+
+app.use(cors()); 
 
 // Sequelize Sync (Create tables if they don't exist)
 // sequelize.sync();

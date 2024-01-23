@@ -28,16 +28,17 @@ exports.createField = async (req, res) => {
     });
 
     if (!createField) {
-      return res.status(400).json({ msg: "Error creating the field" });
+      return res.status(400).json({ success : false, message: "Error creating the field" });
     } else {
       return res.status(201).json({
-        msg: `Successfully created ${field_name}`,
+        success : true,
+        message: `Successfully created ${field_name}`,
         field: createField,
       });
     }
   } catch (error) {
     console.log("Error in create field:", error);
-    return res.status(500).json({ message: "Server Error" });
+    return res.status(500).json({ success : false, message: "Server Error" });
   }
 };
 
@@ -73,16 +74,17 @@ exports.updateField = async (req, res) => {
     );
 
     if (!updatedField) {
-      return res.status(404).json({ msg: "Field not found" });
+      return res.status(404).json({ success : false, message: "Field not found" });
     }
 
     return res.status(200).json({
-      msg: `Successfully updated ${field_name}`,
+      success : true,
+      message: `Successfully updated ${field_name}`,
       field: updatedField,
     });
   } catch (error) {
     console.error("Error updating field:", error);
-    return res.status(500).json({ message: "Server Error" });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -102,16 +104,17 @@ exports.softDeleteField = async (req, res) => {
     );
 
     if (!softDeletedField) {
-      return res.status(404).json({ msg: "Field not found" });
+      return res.status(404).json({ success : false, msg: "Field not found" });
     }
 
     return res.status(200).json({
-      msg: `Successfully soft deleted ${softDeletedField.field_name}`,
+      success : true,
+      message: `Successfully soft deleted ${softDeletedField.field_name}`,
       field: softDeletedField,
     });
   } catch (error) {
     console.error("Error soft deleting field:", error);
-    return res.status(500).json({ message: "Server Error" });
+    return res.status(500).json({ success : false, message: "Server Error" });
   }
 };
 
@@ -126,16 +129,17 @@ exports.getFieldsByClubId = async (req, res) => {
     });
 
     if (!fields || fields.length === 0) {
-      return res.status(404).json({ msg: "No active fields found for the club" });
+      return res.status(404).json({ success : false, message: "No active fields found for the club" });
     }
 
     return res.status(200).json({
+      success : true,
       message: "Fields list for the club",
       fields: fields,
     });
   } catch (error) {
     console.error("Error fetching fields by club ID:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ success : false, error: "Internal Server Error" });
   }
 };
 
@@ -146,24 +150,26 @@ exports.viewFieldById = async (req, res) => {
     const field = await Field.findById(fieldId);
 
     if (!field) {
-      return res.status(404).json({ msg: "Field not found" });
+      return res.status(404).json({ 
+        success : false,
+        message: "Field not found" });
     }
 
     return res.status(200).json({
-      status: true,
+      success: true,
       message: "Field details",
       field,
     });
   } catch (error) {
     console.error("Error fetching field by field ID:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
 
 exports.importFields = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ msg: "No file uploaded" });
+      return res.status(400).json({ success : false, message: "No file uploaded" });
     }
 
     let { club_id } = req.params;
@@ -172,7 +178,7 @@ exports.importFields = async (req, res) => {
 
     // Check if the buffer is a valid Buffer instance
     if (!Buffer.isBuffer(file.buffer)) {
-      return res.status(400).json({ msg: "Invalid file buffer" });
+      return res.status(400).json({ success : false, message: "Invalid file buffer" });
     }
 
     // Create a temporary file path
@@ -241,12 +247,13 @@ exports.importFields = async (req, res) => {
     );
 
     return res.status(201).json({
-      msg: `Successfully imported fields`,
+      status: true,
+      message: `Successfully imported fields`,
       fields: createFields,
     });
   } catch (error) {
     console.error("Error in import fields:", error);
-    return res.status(500).json({ message: "Server Error" });
+    return res.status(500).json({ success : false, message: "Server Error" });
   }
 };
 
@@ -268,13 +275,13 @@ exports.activateOrDeactivateField = async (req, res) => {
     );
 
     if (!updatedfield) {
-      return res.status(404).json({ msg: 'field not found' });
+      return res.status(404).json({ success : false, message: 'field not found' });
     }
 
     let status = is_active == true ? 'activated' : 'deactivated'
-    return res.status(200).json({ msg: `Field ${status} successfully`, field: updatedfield });
+    return res.status(200).json({ success : true, message: `Field ${status} successfully`, field: updatedfield });
   } catch (error) {
     console.error('Error in activate/deactivate field:', error);
-    return res.status(500).json({ msg: 'Server Error' });
+    return res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

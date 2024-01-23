@@ -39,10 +39,13 @@ exports.createTeam = async (req, res) => {
       travelling_end,
     });
     if (!createTeam) {
-      return res.status(400).json({ msg: "Error creating the team" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Error creating the team" });
     } else {
       return res.status(201).json({
-        msg: `Successfully created ${team_name}`,
+        success: true,
+        message: `Successfully created ${team_name}`,
         team: createTeam,
       });
     }
@@ -95,16 +98,19 @@ exports.updateTeam = async (req, res) => {
     );
 
     if (!updatedTeam) {
-      return res.status(404).json({ msg: "Team not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Team not found" });
     }
 
     return res.status(200).json({
-      msg: `Successfully updated ${team_name}`,
+      success: true,
+      message: `Successfully updated ${team_name}`,
       team: updatedTeam,
     });
   } catch (error) {
     console.error("Error updating team:", error);
-    return res.status(500).json({ message: "Server Error" });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -124,16 +130,19 @@ exports.softDeleteTeam = async (req, res) => {
     );
 
     if (!softDeletedTeam) {
-      return res.status(404).json({ msg: "Team not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Team not found" });
     }
 
     return res.status(200).json({
-      msg: `Successfully soft deleted ${softDeletedTeam.team_name}`,
+      success: true,
+      message: `Successfully soft deleted ${softDeletedTeam.team_name}`,
       team: softDeletedTeam,
     });
   } catch (error) {
     console.error("Error soft deleting team:", error);
-    return res.status(500).json({ message: "Server Error" });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -150,16 +159,22 @@ exports.getTeamsByClubId = async (req, res) => {
     if (!teams || teams.length === 0) {
       return res
         .status(404)
-        .json({ msg: "No active teams found for the club" });
+        .json({
+          success: false,
+          message: "No active teams found for the club",
+        });
     }
 
     return res.status(200).json({
+      success: true,
       message: "Teams list for the club",
       teams: teams,
     });
   } catch (error) {
     console.error("Error fetching teams by club ID:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Internal Server Error" });
   }
 };
 
@@ -171,24 +186,30 @@ exports.viewTeamById = async (req, res) => {
     const team = await Team.findById(teamId);
 
     if (!team) {
-      return res.status(404).json({ msg: "Team not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Team not found" });
     }
 
     return res.status(200).json({
-      status: true,
+      success: true,
       message: "Team details",
       team,
     });
   } catch (error) {
     console.error("Error fetching team by team ID:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Internal Server Error" });
   }
 };
 
 exports.importTeams = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ msg: "No file uploaded" });
+      return res
+        .status(400)
+        .json({ success: false, message: "No file uploaded" });
     }
 
     let { club_id } = req.params;
@@ -197,7 +218,9 @@ exports.importTeams = async (req, res) => {
 
     // Check if the buffer is a valid Buffer instance
     if (!Buffer.isBuffer(file.buffer)) {
-      return res.status(400).json({ msg: "Invalid file buffer" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid file buffer" });
     }
 
     // Create a temporary file path
@@ -234,7 +257,6 @@ exports.importTeams = async (req, res) => {
           rsvp_duration,
         ] = row.values;
 
-
         teamsData.push({
           club_id,
           team_name,
@@ -260,12 +282,13 @@ exports.importTeams = async (req, res) => {
     );
 
     return res.status(201).json({
-      msg: `Successfully imported teams`,
+      success: true,
+      message: `Successfully imported teams`,
       teams: createdTeams,
     });
   } catch (error) {
     console.error("Error in import teams:", error);
-    return res.status(500).json({ message: "Server Error" });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -275,8 +298,10 @@ exports.activateOrDeactivateTeam = async (req, res) => {
     const { is_active } = req.body;
 
     // Validate is_active value
-    if (is_active === undefined || typeof is_active !== 'boolean') {
-      return res.status(400).json({ msg: 'Invalid is_active value' });
+    if (is_active === undefined || typeof is_active !== "boolean") {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid is_active value" });
     }
 
     // Update team document
@@ -287,13 +312,21 @@ exports.activateOrDeactivateTeam = async (req, res) => {
     );
 
     if (!updatedTeam) {
-      return res.status(404).json({ msg: 'team not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: "team not found" });
     }
 
-    let status = is_active == true ? 'activated' : 'deactivated'
-    return res.status(200).json({ msg: `Team ${status} successfully`, team: updatedTeam });
+    let status = is_active == true ? "activated" : "deactivated";
+    return res
+      .status(200)
+      .json({
+        success: true,
+        message: `Team ${status} successfully`,
+        team: updatedTeam,
+      });
   } catch (error) {
-    console.error('Error in activate/deactivate Team:', error);
-    return res.status(500).json({ msg: 'Server Error' });
+    console.error("Error in activate/deactivate Team:", error);
+    return res.status(500).json({ success : false, message: "Server Error" });
   }
 };
