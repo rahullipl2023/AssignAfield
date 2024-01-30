@@ -9,22 +9,26 @@ exports.createField = async (req, res) => {
       club_id,
       field_name,
       address,
-      location,
       teams_per_field,
       is_light_available,
       field_open_time,
       field_close_time,
+      city,
+      state,
+      zipcode
     } = req.body;
 
     const createField = await Field.create({
       club_id,
       field_name,
       address,
-      location,
       teams_per_field,
       is_light_available,
       field_open_time,
       field_close_time,
+      city,
+      state,
+      zipcode
     });
 
     if (!createField) {
@@ -49,7 +53,9 @@ exports.updateField = async (req, res) => {
     const {
       field_name,
       address,
-      location,
+      city,
+      state,
+      zipcode,
       teams_per_field,
       is_light_available,
       field_open_time,
@@ -62,7 +68,9 @@ exports.updateField = async (req, res) => {
         $set: {
           field_name,
           address,
-          location,
+          city,
+          state,
+          zipcode,
           teams_per_field,
           is_light_available,
           field_open_time,
@@ -121,27 +129,83 @@ exports.softDeleteField = async (req, res) => {
 exports.getFieldsByClubId = async (req, res) => {
   try {
     const clubId = req.params.clubId;
+    const { search, sort, page } = req.query;
 
-    const fields = await Field.find({
+    // Pagination settings
+    const pageSize = 10; // Number of items per page
+    const currentPage = parseInt(page) || 1; // Current page, default is 1
+
+    let query = {
       club_id: clubId,
-      is_active: true,
       deleted_at: null,
-    });
+    };
+
+    // Add search filter if provided
+    if (search) {
+      query = {
+        ...query,
+        $or: [
+          { field_name: { $regex: new RegExp(search, 'i') } },
+          { address: { $regex: new RegExp(search, 'i') } },
+          { city: { $regex: new RegExp(search, 'i') } },
+          // Add other fields for search as needed
+        ],
+      };
+    }
+
+    let sortOption = {};
+    // Add sorting based on the provided value
+    switch (parseInt(sort)) {
+      case 1:
+        sortOption = { field_name: 1 }; // AtoZ
+        break;
+      case 2:
+        sortOption = { field_name: -1 }; // ZtoA
+        break;
+      case 3:
+        sortOption = { teams_per_field: -1 }; // Size (descending order)
+        break;
+      case 4:
+        sortOption = { is_active: -1 }; // Status (active first)
+        break;
+      case 5:
+        sortOption = { created_at: -1 }; // Date (latest first)
+        break;
+      default:
+        // Default sorting, you can change this to your needs
+        sortOption = { field_name: 1 };
+        break;
+    }
+
+    const totalFields = await Field.countDocuments(query);
+    const totalPages = Math.ceil(totalFields / pageSize);
+
+    const fields = await Field.find(query)
+      .sort(sortOption)
+      .skip((currentPage - 1) * pageSize)
+      .limit(pageSize);
 
     if (!fields || fields.length === 0) {
-      return res.status(404).json({ success : false, message: "No active fields found for the club" });
+      return res.status(404).json({ success: false, message: "No active fields found for the club" });
     }
 
     return res.status(200).json({
-      success : true,
+      success: true,
       message: "Fields list for the club",
       fields: fields,
+      pagination: {
+        totalItems: totalFields,
+        totalPages: totalPages,
+        currentPage: currentPage,
+      },
     });
   } catch (error) {
     console.error("Error fetching fields by club ID:", error);
-    return res.status(500).json({ success : false, error: "Internal Server Error" });
+    return res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
+
+
 
 exports.viewFieldById = async (req, res) => {
   try {
@@ -201,40 +265,33 @@ exports.importFields = async (req, res) => {
     worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
       if (rowNumber !== 1) {
         // Skip header row
+      
         const [
           ,
-          team_name,
-          coach_id,
-          age_group,
-          practice_length,
-          no_of_players,
-          preferred_timing,
-          preferred_field_size,
-          preferred_days,
-          practice_season,
-          rsvp_duration,
-          is_travelling,
-          travelling_start,
-          travelling_end,
+          field_name,
+          address,
+          teams_per_field,
+          is_light_available,
+          field_open_time,
+          field_close_time,
+          city,
+          state,
+          zipcode
         ] = row.values;
 
 
           fieldsData.push({
-          club_id,
-          team_name,
-          coach_id,
-          age_group,
-          practice_length,
-          no_of_players,
-          preferred_timing,
-          preferred_field_size,
-          preferred_days,
-          practice_season,
-          rsvp_duration,
-          is_travelling,
-          travelling_start,
-          travelling_end,
-        });
+            club_id,
+            field_name,
+            address,
+            teams_per_field,
+            is_light_available,
+            field_open_time,
+            field_close_time,
+            city,
+            state,
+            zipcode
+          });
       }
     });
 

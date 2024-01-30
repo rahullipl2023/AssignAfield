@@ -1,4 +1,4 @@
-const { Team } = require("../models/schema");
+const { Team, Coach, Club } = require("../models/schema");
 const ExcelJS = require("exceljs");
 const fs = require("fs").promises;
 const path = require("path");
@@ -20,6 +20,9 @@ exports.createTeam = async (req, res) => {
       is_travelling,
       travelling_start,
       travelling_end,
+      region, 
+      team_level, 
+      gender
     } = req.body;
 
     let createTeam = await Team.create({
@@ -37,6 +40,9 @@ exports.createTeam = async (req, res) => {
       is_travelling,
       travelling_start,
       travelling_end,
+      region, 
+      team_level, 
+      gender
     });
     if (!createTeam) {
       return res
@@ -57,8 +63,10 @@ exports.createTeam = async (req, res) => {
 
 exports.updateTeam = async (req, res) => {
   try {
+
+    const team_id = req.params.teamId;
+
     const {
-      team_id,
       team_name,
       coach_id,
       age_group,
@@ -70,8 +78,12 @@ exports.updateTeam = async (req, res) => {
       practice_season,
       rsvp_duration,
       time_off,
+      is_travelling,
       travelling_start,
       travelling_end,
+      region, 
+      team_level, 
+      gender
     } = req.body;
 
     // Find the team by ID and update its details
@@ -90,8 +102,12 @@ exports.updateTeam = async (req, res) => {
           practice_season,
           rsvp_duration,
           time_off,
+          is_travelling,
           travelling_start,
           travelling_end,
+          region, 
+          team_level, 
+          gender
         },
       },
       { new: true } // Return the updated team
@@ -149,34 +165,86 @@ exports.softDeleteTeam = async (req, res) => {
 exports.getTeamsByClubId = async (req, res) => {
   try {
     const clubId = req.params.club_id;
+    const { search, sort, page } = req.query;
 
-    // Find teams by club ID where deleted_at is either null or undefined
-    const teams = await Team.find({
+    // Pagination settings
+    const pageSize = 10; // Number of items per page
+    const currentPage = parseInt(page) || 1; // Current page, default is 1
+
+    let query = {
       club_id: clubId,
       deleted_at: { $in: [null, undefined] },
-    });
+    };
+
+    // Add search filter if provided
+    if (search) {
+      query = {
+        ...query,
+        $or: [
+          { team_name: { $regex: new RegExp(search, 'i') } },
+          { age_group: { $regex: new RegExp(search, 'i') } },
+          { gender: { $regex: new RegExp(search, 'i') } },
+          // Add other fields for search as needed
+        ],
+      };
+    }
+
+    let sortOption = {};
+    // Add sorting based on the provided value
+    switch (parseInt(sort)) {
+      case 1:
+        sortOption = { team_name: 1 }; // AtoZ
+        break;
+      case 2:
+        sortOption = { team_name: -1 }; // ZtoA
+        break;
+      case 3:
+        sortOption = { gender: 1 }; // Gender (ascending order)
+        break;
+      case 4:
+        sortOption = { age_group: 1 }; // Age (ascending order)
+        break;
+      case 5:
+        sortOption = { is_active: -1 }; // Status (active first)
+        break;
+      case 6:
+        sortOption = { created_at: -1 }; // Date (latest first)
+        break;
+      default:
+        // Default sorting, you can change this to your needs
+        sortOption = { team_name: 1 };
+        break;
+    }
+
+    const totalTeams = await Team.countDocuments(query);
+    const totalPages = Math.ceil(totalTeams / pageSize);
+
+    const teams = await Team.find(query)
+      .populate('coach_id') // Populate the coach details
+      .sort(sortOption)
+      .skip((currentPage - 1) * pageSize)
+      .limit(pageSize);
 
     if (!teams || teams.length === 0) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          message: "No active teams found for the club",
-        });
+      return res.status(404).json({ success: false, message: "No active teams found for the club" });
     }
 
     return res.status(200).json({
       success: true,
       message: "Teams list for the club",
       teams: teams,
+      pagination: {
+        totalItems: totalTeams,
+        totalPages: totalPages,
+        currentPage: currentPage,
+      },
     });
   } catch (error) {
     console.error("Error fetching teams by club ID:", error);
-    return res
-      .status(500)
-      .json({ success: false, error: "Internal Server Error" });
+    return res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
+
 
 exports.viewTeamById = async (req, res) => {
   try {
@@ -207,9 +275,7 @@ exports.viewTeamById = async (req, res) => {
 exports.importTeams = async (req, res) => {
   try {
     if (!req.file) {
-      return res
-        .status(400)
-        .json({ success: false, message: "No file uploaded" });
+      return res.status(400).json({ success: false, message: "No file uploaded" });
     }
 
     let { club_id } = req.params;
@@ -218,9 +284,7 @@ exports.importTeams = async (req, res) => {
 
     // Check if the buffer is a valid Buffer instance
     if (!Buffer.isBuffer(file.buffer)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid file buffer" });
+      return res.status(400).json({ success: false, message: "Invalid file buffer" });
     }
 
     // Create a temporary file path
@@ -240,38 +304,56 @@ exports.importTeams = async (req, res) => {
 
     const teamsData = [];
 
-    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      if (rowNumber !== 1) {
-        // Skip header row
-        const [
-          ,
-          team_name,
-          coach_id,
-          age_group,
-          practice_length,
-          no_of_players,
-          preferred_timing,
-          preferred_field_size,
-          preferred_days,
-          practice_season,
-          rsvp_duration,
-        ] = row.values;
+    for await (const row of worksheet.getRows({ includeEmpty: false })) {
+      // Skip header row
+      if (row.number === 1) continue;
 
-        teamsData.push({
+      const {
+        team_name,
+        coach_name,
+        age_group,
+        practice_length,
+        no_of_players,
+        preferred_timing,
+        preferred_field_size,
+        preferred_days,
+        gender,
+        team_level,
+        travel_time_start,
+        travel_time_end,
+        region,
+      } = row.values;
+
+      let coach = await Coach.findOne({ club_id, first_name: coach_name });
+
+      // If coach not found, create a new coach
+      if (!coach) {
+        const [first_name, last_name] = coach_name.split(' ');
+        coach = await Coach.create({
           club_id,
-          team_name,
-          coach_id,
-          age_group,
-          practice_length,
-          no_of_players,
-          preferred_timing,
-          preferred_field_size,
-          preferred_days,
-          practice_season,
-          rsvp_duration,
+          first_name,
+          last_name,
+          // Add other coach properties as needed
         });
       }
-    });
+
+      teamsData.push({
+        club_id,
+        team_name,
+        coach_id: coach._id,
+        age_group,
+        practice_length,
+        no_of_players,
+        preferred_timing,
+        preferred_field_size,
+        preferred_days,
+        gender,
+        team_level,
+        travel_time_start,
+        travel_time_end,
+        region,
+      });
+    }
 
     // Create teams without a transaction
     const createdTeams = await Promise.all(
@@ -291,6 +373,8 @@ exports.importTeams = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
+
+
 
 exports.activateOrDeactivateTeam = async (req, res) => {
   try {

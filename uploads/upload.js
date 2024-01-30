@@ -56,7 +56,7 @@ const uploadExcelFile = (req, res, next) => {
         cb(new Error('Unexpected field'));
       }
     },
-  }).single('coach_file')(req, res, next);
+  }).single('file')(req, res, next);
 };
 
 

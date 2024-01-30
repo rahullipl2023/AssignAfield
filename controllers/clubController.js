@@ -92,20 +92,19 @@ exports.clubLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const findUser = await User.findOne({ email });
+    const findUser = await User.findOne({ email }).populate('club_id');
     if (!findUser) {
       return res.status(401).json({ success: false, message: "Invalid Email" });
     }
 
     const isValidPassword = bcrypt.compareSync(password, findUser.password);
     if (!isValidPassword) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Invalid Password!" });
+      return res.status(401).json({ success: false, message: "Invalid Password!" });
     }
 
     const token = await generateToken(findUser);
     console.log(token);
+    
     return res.status(200).json({
       success: true,
       message: "Logged in successfully",
@@ -121,13 +120,14 @@ exports.clubLogin = async (req, res) => {
   }
 };
 
+
 // Get all clubs
 exports.getAllClubs = async (req, res) => {
   try {
     const clubs = await Club.find();
-    res.status(200).json({ success: true, message: "Club details", clubs });
+    res.status(200).json({success : true, message : "Club details", clubs});
   } catch (error) {
-    res.status(500).json({ success: false, error: "Internal Server Error" });
+    res.status(500).json({ success : false, error: "Internal Server Error" });
   }
 };
 
@@ -136,11 +136,11 @@ exports.getClubById = async (req, res) => {
   try {
     const club = await Club.findById(req.params.id);
     if (!club) {
-      return res.status(404).json({ success: false, error: "Club not found" });
+      return res.status(404).json({ success : false, error: "Club not found" });
     }
-    res.status(200).json({ success: true, message: "Club details", club });
+    res.status(200).json({success : true, message : "Club details",club});
   } catch (error) {
-    res.status(500).json({ success: false, error: "Internal Server Error" });
+    res.status(500).json({ success : false, error: "Internal Server Error" });
   }
 };
 
@@ -151,13 +151,11 @@ exports.updateClubById = async (req, res) => {
       new: true,
     });
     if (!updatedClub) {
-      return res.status(404).json({ success: false, error: "Club not found" });
+      return res.status(404).json({ success : false, error: "Club not found" });
     }
-    res
-      .status(200)
-      .json({ success: true, message: "Club updated ", updatedClub });
+    res.status(200).json({success : true, message : "Club updated ",updatedClub});
   } catch (error) {
-    res.status(500).json({ success: false, error: "Internal Server Error" });
+    res.status(500).json({success : false,  error: "Internal Server Error" });
   }
 };
 
@@ -166,11 +164,11 @@ exports.deleteClubById = async (req, res) => {
   try {
     const deletedClub = await Club.findByIdAndDelete(req.params.id);
     if (!deletedClub) {
-      return res.status(404).json({ success: false, error: "Club not found" });
+      return res.status(404).json({ success : false, error: "Club not found" });
     }
-    res.status(204).json({ success: true, message: "Club deleted " });
+    res.status(204).json({success : true, message : "Club deleted ",});
   } catch (error) {
-    res.status(500).json({ success: false, error: "Internal Server Error" });
+    res.status(500).json({ success : false, error: "Internal Server Error" });
   }
 };
 
@@ -179,15 +177,10 @@ exports.getClubWithUser = async (req, res) => {
     const clubId = req.params.club_id;
 
     // Find the user by club ID and populate the 'club_id' field
-    const clubWithUserDetails = await User.find({
-      club_id: clubId,
-      deleted_at: { $in: [null, undefined] },
-    });
+    const clubWithUserDetails = await User.find({ club_id: clubId, deleted_at: { $in: [null, undefined] } });
 
     if (!clubWithUserDetails || clubWithUserDetails.length === 0) {
-      return res
-        .status(404)
-        .json({ success: true, error: "No active users found for the club" });
+      return res.status(404).json({ success : true, error: "No active users found for the club" });
     }
 
     // Return the user information with club details
@@ -198,6 +191,6 @@ exports.getClubWithUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching user with club:", error);
-    res.status(500).json({ success: true, error: "Internal Server Error" });
+    res.status(500).json({ success : true, error: "Internal Server Error" });
   }
 };

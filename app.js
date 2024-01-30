@@ -12,6 +12,7 @@ const { MONGO_URI, PORT } = require('./config/database.js');
 const mongoose = require('mongoose');
 const { updateSchedule } = require('./controllers/scheduleController.js')
 const cors = require('cors'); 
+const multer = require('multer');
 dotenv.config();
 
 // const app = express();
@@ -29,9 +30,7 @@ const indexRouter = require('./routes/index');
 require('./config/passportConfig');
 
 const app = express();
-
 app.use(cors()); 
-
 // Sequelize Sync (Create tables if they don't exist)
 // sequelize.sync();
 
@@ -58,8 +57,14 @@ app.use((req, res, next) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send('Something went wrong!');
+  if (err instanceof multer.MulterError) {
+    // A Multer error occurred when uploading.
+    return res.status(400).json({ success: false, message: 'Multer error', error: err.message });
+  } else if (err) {
+    // An unknown error occurred.
+    return res.status(500).json({ success: false, message: 'Server error', error: err.message });
+  }
+  next();
 });
 
 async function someFunction() {

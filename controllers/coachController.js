@@ -55,16 +55,20 @@ exports.updateCoach = async (req, res) => {
   try {
     const coachId = req.params.coachId;
 
-    const {
+    let {
       first_name,
       last_name,
       email,
       contact,
       address,
-      coach_profile,
+      coaching_licence,
+      profile_picture,
       preferred_time,
       multiple_teams_availability,
     } = req.body;
+
+    let coachProfileFile = req.files["coach_profile"] ? req.files["coach_profile"][0] : null;
+    multiple_teams_availability = multiple_teams_availability == 'true' ? true : false
 
     const updatedCoach = await Coach.findByIdAndUpdate(
       coachId,
@@ -75,9 +79,10 @@ exports.updateCoach = async (req, res) => {
           email,
           contact,
           address,
-          coach_profile,
+          coach_profile : coachProfileFile && coachProfileFile?.filename ? coachProfileFile?.filename : profile_picture,
           preferred_time,
           multiple_teams_availability,
+          coaching_licence,
           updated_at: new Date(),
         },
       },
@@ -132,29 +137,79 @@ exports.softDeleteCoach = async (req, res) => {
 exports.getCoachesByClubId = async (req, res) => {
   try {
     const clubId = req.params.club_id;
+    const { search, sort, page } = req.query;
 
-    const coaches = await Coach.find({
+    // Pagination settings
+    const pageSize = 10; // Number of items per page
+    const currentPage = parseInt(page) || 1; // Current page, default is 1
+
+    let query = {
       club_id: clubId,
-      is_active: true,
       deleted_at: null,
-    });
+    };
+
+    // Add search filter if provided
+    if (search) {
+      query = {
+        ...query,
+        $or: [
+          { first_name: { $regex: new RegExp(search, 'i') } },
+          { last_name: { $regex: new RegExp(search, 'i') } },
+          { email: { $regex: new RegExp(search, 'i') } },
+          // Add other fields for search as needed
+        ],
+      };
+    }
+
+    let sortOption = {};
+    // Add sorting based on the provided value
+    switch (parseInt(sort)) {
+      case 1:
+        sortOption = { first_name: 1 }; // AtoZ
+        break;
+      case 2:
+        sortOption = { first_name: -1 }; // ZtoA
+        break;
+      case 3:
+        sortOption = { is_active: -1 }; // Status (active first)
+        break;
+      case 4:
+        sortOption = { created_at: -1 }; // Date (latest first)
+        break;
+      default:
+        // Default sorting, you can change this to your needs
+        sortOption = { first_name: 1 };
+        break;
+    }
+
+    const totalCoaches = await Coach.countDocuments(query);
+    const totalPages = Math.ceil(totalCoaches / pageSize);
+
+    const coaches = await Coach.find(query)
+      .sort(sortOption)
+      .skip((currentPage - 1) * pageSize)
+      .limit(pageSize);
 
     if (!coaches || coaches.length === 0) {
-      return res
-        .status(404)
-        .json({ success : false, msg: "No active coaches found for the club" });
+      return res.status(404).json({ success: false, msg: "No active coaches found for the club" });
     }
 
     return res.status(200).json({
-      success : true,
+      success: true,
       message: "Coaches list for the club",
       coaches: coaches,
+      pagination: {
+        totalItems: totalCoaches,
+        totalPages: totalPages,
+        currentPage: currentPage,
+      },
     });
   } catch (error) {
     console.error("Error fetching coaches by club ID:", error);
-    return res.status(500).json({ success : false, error: "Internal Server Error" });
+    return res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
+
 
 exports.viewCoachById = async (req, res) => {
   try {
@@ -257,7 +312,7 @@ exports.importCoaches = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in import coaches:", error);
-    return res.status(500).json({ success : false,  message: "Server Error" });
+    return res.status(500).json({ success : false,  message: `Server Error :- ${error}` });
   }
 };
 
