@@ -87,6 +87,7 @@ const teamSchema = new mongoose.Schema({
   practice_season: String,
   rsvp_duration: String,
   is_travelling : { type: Boolean, default: false },
+  travelling_date : Array,
   travelling_start: Date,
   travelling_end: Date,
   region : String, 

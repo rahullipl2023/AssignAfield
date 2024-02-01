@@ -210,6 +210,25 @@ exports.getCoachesByClubId = async (req, res) => {
   }
 };
 
+exports.getCoachesList = async (req, res) => {
+  try {
+    const clubId = req.params.club_id;
+
+    const coaches = await Coach.find({ club_id: clubId });
+
+    return res.status(200).json({
+      success: true,
+      message: "Coaches list for the club",
+      coaches: coaches,
+    });
+    
+  } catch (error) {
+    console.error("Error fetching coaches by club ID:", error);
+    return res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+};
+
+
 
 exports.viewCoachById = async (req, res) => {
   try {

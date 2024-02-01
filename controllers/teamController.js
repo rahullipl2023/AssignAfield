@@ -18,6 +18,7 @@ exports.createTeam = async (req, res) => {
       practice_season,
       rsvp_duration,
       is_travelling,
+      travelling_date,
       travelling_start,
       travelling_end,
       region, 
@@ -38,6 +39,7 @@ exports.createTeam = async (req, res) => {
       practice_season,
       rsvp_duration,
       is_travelling,
+      travelling_date,
       travelling_start,
       travelling_end,
       region, 
@@ -79,6 +81,7 @@ exports.updateTeam = async (req, res) => {
       rsvp_duration,
       time_off,
       is_travelling,
+      travelling_date,
       travelling_start,
       travelling_end,
       region, 
@@ -103,6 +106,7 @@ exports.updateTeam = async (req, res) => {
           rsvp_duration,
           time_off,
           is_travelling,
+          travelling_date,
           travelling_start,
           travelling_end,
           region, 
@@ -245,6 +249,28 @@ exports.getTeamsByClubId = async (req, res) => {
   }
 };
 
+exports.getTeamsList = async (req, res) => {
+  try {
+    const clubId = req.params.club_id;
+
+
+    const teams = await Team.find({club_id:clubId})
+      .populate('coach_id') // Populate the coach details
+
+    if (!teams || teams.length == 0) {
+      return res.status(404).json({ success: false, message: "No active teams found " });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Teams list ",
+      teams: teams,
+    });
+  } catch (error) {
+    console.error("Error fetching teams by club ID:", error);
+    return res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+};
 
 exports.viewTeamById = async (req, res) => {
   try {
@@ -304,55 +330,63 @@ exports.importTeams = async (req, res) => {
 
     const teamsData = [];
 
-    for await (const row of worksheet.getRows({ includeEmpty: false })) {
+    // Use for...of loop to ensure asynchronous operations complete before moving on
+   for (let rowNumber = 1; rowNumber <= worksheet.rowCount; rowNumber++) {
+      const row = worksheet.getRow(rowNumber);
+
       // Skip header row
-      if (row.number === 1) continue;
+      if (rowNumber !== 1) {
+        const [
+          ,
+          team_name,
+          coach_name,
+          age_group,
+          practice_length,
+          no_of_players,
+          preferred_timing,
+          preferred_field_size,
+          preferred_days,
+          gender,
+          team_level,
+          travel_time_start,
+          travel_time_end,
+          region,
+        ] = row.values;
 
-      const {
-        team_name,
-        coach_name,
-        age_group,
-        practice_length,
-        no_of_players,
-        preferred_timing,
-        preferred_field_size,
-        preferred_days,
-        gender,
-        team_level,
-        travel_time_start,
-        travel_time_end,
-        region,
-      } = row.values;
+        let coach;
 
-      let coach = await Coach.findOne({ club_id, first_name: coach_name });
+        // Check if coach_name is defined
+        if (coach_name) {
+          // Split coach_name into first_name and last_name
+          const [first_name, last_name] = coach_name.includes(' ')
+            ? coach_name.split(' ')
+            : [coach_name, coach_name];
 
-      // If coach not found, create a new coach
-      if (!coach) {
-        const [first_name, last_name] = coach_name.split(' ');
-        coach = await Coach.create({
+          // Create or find the coach based on first_name and last_name
+          coach = await Coach.findOneAndUpdate(
+            { club_id, first_name, last_name },
+            { club_id, first_name, last_name },
+            { upsert: true, new: true }
+          );
+        }
+
+        teamsData.push({
           club_id,
-          first_name,
-          last_name,
-          // Add other coach properties as needed
+          team_name,
+          coach_id: coach ? coach._id : null,
+          age_group,
+          practice_length : practice_length ? Number(practice_length.split(' ')[0]) : 0,
+          no_of_players,
+          preferred_timing,
+          preferred_field_size,
+          preferred_days: preferred_days ? preferred_days.split(',').map(day => day.trim()) : [],
+          gender,
+          team_level,
+          travel_time_start,
+          travel_time_end,
+          region,
         });
       }
-
-      teamsData.push({
-        club_id,
-        team_name,
-        coach_id: coach._id,
-        age_group,
-        practice_length,
-        no_of_players,
-        preferred_timing,
-        preferred_field_size,
-        preferred_days,
-        gender,
-        team_level,
-        travel_time_start,
-        travel_time_end,
-        region,
-      });
     }
 
     // Create teams without a transaction
@@ -373,7 +407,6 @@ exports.importTeams = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
-
 
 
 exports.activateOrDeactivateTeam = async (req, res) => {

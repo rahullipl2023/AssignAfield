@@ -9,6 +9,7 @@ router.put('/update-team/:teamId', verifyToken, teamController.updateTeam)
 router.put('/delete-team/:teamId', verifyToken, teamController.softDeleteTeam)
 router.get('/view-team/:teamId', verifyToken, teamController.viewTeamById)
 router.get('/view-team-by-club/:club_id', verifyToken, teamController.getTeamsByClubId)
+router.get('/view-team-list/:club_id', verifyToken, teamController.getTeamsList)
 router.post('/import-team/:club_id',uploadExcelFile, verifyToken, teamController.importTeams)
 router.put('/activate-or-deactivate-team/:teamId', verifyToken, teamController.activateOrDeactivateTeam)
 

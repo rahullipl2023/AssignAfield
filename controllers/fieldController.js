@@ -205,7 +205,26 @@ exports.getFieldsByClubId = async (req, res) => {
   }
 };
 
+exports.getFieldsList = async (req, res) => {
+  try {
+    const clubId = req.params.clubId;
 
+    const fields = await Field.find({club_id: clubId})
+
+    if (!fields || fields.length === 0) {
+      return res.status(404).json({ success: false, message: "No active fields found " });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Fields list ",
+      fields: fields,
+    });
+  } catch (error) {
+    console.error("Error fetching fields by club ID:", error);
+    return res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+};
 
 exports.viewFieldById = async (req, res) => {
   try {
@@ -233,7 +252,7 @@ exports.viewFieldById = async (req, res) => {
 exports.importFields = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success : false, message: "No file uploaded" });
+      return res.status(400).json({ success: false, message: "No file uploaded" });
     }
 
     let { club_id } = req.params;
@@ -242,7 +261,7 @@ exports.importFields = async (req, res) => {
 
     // Check if the buffer is a valid Buffer instance
     if (!Buffer.isBuffer(file.buffer)) {
-      return res.status(400).json({ success : false, message: "Invalid file buffer" });
+      return res.status(400).json({ success: false, message: "Invalid file buffer" });
     }
 
     // Create a temporary file path
@@ -265,7 +284,6 @@ exports.importFields = async (req, res) => {
     worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
       if (rowNumber !== 1) {
         // Skip header row
-      
         const [
           ,
           field_name,
@@ -279,19 +297,25 @@ exports.importFields = async (req, res) => {
           zipcode
         ] = row.values;
 
+        console.log(row.values,"row.values")
+        // Convert Date objects to time strings directly
+        const formattedFieldOpenTime = formatDateToString(field_open_time);
+        const formattedFieldCloseTime = formatDateToString(field_close_time);
+        console.log("formattedFieldOpenTime :- ",formattedFieldOpenTime, "formattedFieldCloseTime :- ",formattedFieldCloseTime)
 
-          fieldsData.push({
-            club_id,
-            field_name,
-            address,
-            teams_per_field,
-            is_light_available,
-            field_open_time,
-            field_close_time,
-            city,
-            state,
-            zipcode
-          });
+        fieldsData.push({
+          club_id,
+          field_name,
+          address,
+          teams_per_field,
+          is_light_available,
+          field_open_time : formattedFieldOpenTime,
+          field_close_time : formattedFieldCloseTime,
+          city,
+          state,
+          zipcode
+        });
+        
       }
     });
 
@@ -305,14 +329,16 @@ exports.importFields = async (req, res) => {
 
     return res.status(201).json({
       status: true,
-      message: `Successfully imported fields`,
+      message: "Successfully imported fields",
       fields: createFields,
     });
   } catch (error) {
     console.error("Error in import fields:", error);
-    return res.status(500).json({ success : false, message: "Server Error" });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
+
+
 
 exports.activateOrDeactivateField = async (req, res) => {
   try {
@@ -342,3 +368,10 @@ exports.activateOrDeactivateField = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
+
+// Helper function to format date to time string in HH:mm format
+function formatDateToString(date) {
+  const hours = date.getUTCHours().toString().padStart(2, '0');
+  const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
+}

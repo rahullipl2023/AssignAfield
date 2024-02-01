@@ -95,7 +95,24 @@ exports.softDeleteSubUser = async (req, res) => {
     const userId = req.params.id;
 
     // Find the user that you want to soft delete
-    const userToDelete = await User.findByIdAndUpdate(
+    const userToDelete = await User.findById(userId);
+
+    if (!userToDelete) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not Found!" });
+    }
+
+    // Check if the user is an admin
+    if (userToDelete.is_admin) {
+      return res.status(400).json({
+        success: false,
+        message: "Admin user cannot be deleted.",
+      });
+    }
+
+    // Perform the soft deletion
+    const softDeletedUser = await User.findByIdAndUpdate(
       userId,
       {
         $set: {
@@ -105,21 +122,15 @@ exports.softDeleteSubUser = async (req, res) => {
       { new: true }
     );
 
-    if (!userToDelete) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not Found!" });
-    }
-
     // Continue with the response for a successful soft deletion
     return res.status(200).json({
       success: true,
       message: "User soft deleted successfully.",
-      deletedUser: userToDelete,
+      deletedUser: softDeletedUser,
     });
   } catch (error) {
     console.error("Error soft deleting sub-user:", error.message);
-    return res.status(500).json({ success : false, error: "Server Error" });
+    return res.status(500).json({ success: false, error: "Server Error" });
   }
 };
 
