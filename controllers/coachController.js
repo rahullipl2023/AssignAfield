@@ -14,6 +14,7 @@ exports.createCoach = async (req, res) => {
       contact,
       address,
       preferred_time,
+      preferred_days,
       multiple_teams_availability,
     } = req.body;
 
@@ -33,6 +34,7 @@ exports.createCoach = async (req, res) => {
       address,
       coach_profile: coachProfileFile ? coachProfileFile.filename : "",
       preferred_time,
+      preferred_days,
       multiple_teams_availability,
     });
 
@@ -64,6 +66,7 @@ exports.updateCoach = async (req, res) => {
       coaching_licence,
       profile_picture,
       preferred_time,
+      preferred_days,
       multiple_teams_availability,
     } = req.body;
 
@@ -81,6 +84,7 @@ exports.updateCoach = async (req, res) => {
           address,
           coach_profile : coachProfileFile && coachProfileFile?.filename ? coachProfileFile?.filename : profile_picture,
           preferred_time,
+          preferred_days,
           multiple_teams_availability,
           coaching_licence,
           updated_at: new Date(),
@@ -228,8 +232,6 @@ exports.getCoachesList = async (req, res) => {
   }
 };
 
-
-
 exports.viewCoachById = async (req, res) => {
   try {
     const coachId = req.params.coachId;
@@ -295,12 +297,12 @@ exports.importCoaches = async (req, res) => {
           contact,
           address,
           preferred_time,
+          preferred_days,
           multiple_teams_availability,
         ] = row.values;
 
-        const validMultipleTeamsAvailability =
-          multiple_teams_availability == true ||
-          multiple_teams_availability.toLowerCase() === "true";
+        const validMultipleTeamsAvailability = multiple_teams_availability == true ||
+          multiple_teams_availability == "TRUE" || multiple_teams_availability == "true" ? true : false;
 
         coachesData.push({
           club_id,
@@ -311,6 +313,7 @@ exports.importCoaches = async (req, res) => {
           contact,
           address,
           preferred_time,
+          preferred_days,
           multiple_teams_availability: validMultipleTeamsAvailability,
         });
       }

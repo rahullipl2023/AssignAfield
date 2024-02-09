@@ -1,6 +1,6 @@
 const express = require('express');
 const clubController = require('../controllers/clubController');
-const { uploadClubProfileAndUserProfile } = require('../uploads/upload');
+const { uploadClubProfileAndUserProfile,uploadClubProfile } = require('../uploads/upload');
 const { verifyToken } = require('../middlewares/authMiddleware')
 const router = express.Router();
 
@@ -8,7 +8,7 @@ router.post('/register-club', uploadClubProfileAndUserProfile, clubController.cr
 router.post('/club-login', clubController.clubLogin);
 router.get('/clubs', clubController.getAllClubs);
 router.get('/clubs/:id',verifyToken, clubController.getClubById);
-router.put('/clubs/:id', verifyToken, clubController.updateClubById);
+router.put('/update-clubs/:id', verifyToken,uploadClubProfile, clubController.updateClubById);
 router.delete('/clubs/:id', verifyToken, clubController.deleteClubById);
 router.get('/getClubWithUser/:club_id',verifyToken, clubController.getClubWithUser);
 

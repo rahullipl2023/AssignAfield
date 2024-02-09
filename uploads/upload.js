@@ -38,7 +38,7 @@ const uploadClubProfileAndUserProfile = upload('public/images', ['club_profile',
 
 const uploadCoachProfile = upload('public/images', ['coach_profile']).fields([{ name: 'coach_profile', maxCount: 1 }]);
 const uploadSubUserProfile = upload('public/images', ['user_profile']).fields([{ name: 'user_profile', maxCount: 1 }]);
-
+const uploadClubProfile = upload('public/images', ['club_profile']).fields([{ name: 'club_profile', maxCount: 1 }]);
 // const uploadCoachFile = upload('public', ['coach_file']).fields([{ name: 'coach_file', maxCount: 1 }]);
 
 
@@ -61,5 +61,5 @@ const uploadExcelFile = (req, res, next) => {
 
 
 
-module.exports = { uploadClubProfileAndUserProfile, uploadCoachProfile, uploadExcelFile, uploadSubUserProfile };
+module.exports = { uploadClubProfileAndUserProfile, uploadCoachProfile,uploadClubProfile, uploadExcelFile, uploadSubUserProfile };
 

@@ -7,6 +7,7 @@ exports.createClub = async (req, res) => {
     club_name,
     sub_user,
     number_of_members,
+    number_of_teams,
     address,
     contact,
     club_email,
@@ -34,6 +35,7 @@ exports.createClub = async (req, res) => {
       club_name,
       sub_user,
       number_of_members,
+      number_of_teams,
       address,
       contact,
       club_profile: clubProfileFile ? clubProfileFile.filename : "", // Update club_profile with the file path
@@ -147,15 +149,47 @@ exports.getClubById = async (req, res) => {
 // Update a specific club by ID
 exports.updateClubById = async (req, res) => {
   try {
-    const updatedClub = await Club.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-    });
+    let {
+      club_name,
+      number_of_teams,
+      address,
+      number_of_members,
+      time_off_start,
+      time_off_end,
+      profile_image,
+      contact,
+      club_email,
+    } = req.body;
+
+    let clubProfileFile = req.files["club_profile"]
+      ? req.files["club_profile"][0]
+      : null;
+
+    const updatedClub = await Club.findByIdAndUpdate(
+      req.params.id,
+      {
+        club_name,
+        number_of_teams,
+        address,
+        number_of_members,
+        time_off_start,
+        time_off_end,
+        club_profile : clubProfileFile && clubProfileFile?.filename ? clubProfileFile?.filename : profile_image,
+        contact,
+        club_email,
+      },
+      {
+        new: true,
+      }
+    );
     if (!updatedClub) {
-      return res.status(404).json({ success : false, error: "Club not found" });
+      return res.status(404).json({ success: false, error: "Club not found" });
     }
-    res.status(200).json({success : true, message : "Club updated ",updatedClub});
+    res
+      .status(200)
+      .json({ success: true, message: "Club updated ", updatedClub });
   } catch (error) {
-    res.status(500).json({success : false,  error: "Internal Server Error" });
+    res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
 
