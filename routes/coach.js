@@ -10,7 +10,7 @@ router.put('/delete-coach/:coachId', verifyToken, coachController.softDeleteCoac
 router.get('/view-coach/:coachId', verifyToken, coachController.viewCoachById)
 router.get('/view-coach-by-club/:club_id', verifyToken, coachController.getCoachesByClubId)
 router.get('/view-coach-list/:club_id', verifyToken, coachController.getCoachesList)
-router.post('/import-coach/:club_id', verifyToken, uploadExcelFile, coachController.importCoaches)
+router.post('/import-coach/:club_id', verifyToken, coachController.importCoaches)
 router.put('/activate-or-deactivate-coach/:coachId', verifyToken, coachController.activateOrDeactivateCoach)
 
 module.exports = router;

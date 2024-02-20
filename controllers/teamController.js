@@ -1,4 +1,4 @@
-const { Team, Coach, Club } = require("../models/schema");
+const { Team, Club } = require("../models/schema");
 const ExcelJS = require("exceljs");
 const fs = require("fs").promises;
 const path = require("path");
@@ -8,19 +8,15 @@ exports.createTeam = async (req, res) => {
     let {
       team_name,
       club_id,
-      coach_id,
       age_group,
       practice_length,
       no_of_players,
-      preferred_timing,
+      practice_start_time,
+      practice_end_time,
       preferred_field_size,
       preferred_days,
-      practice_season,
-      rsvp_duration,
       is_travelling,
       travelling_date,
-      travelling_start,
-      travelling_end,
       region, 
       team_level, 
       gender
@@ -29,19 +25,15 @@ exports.createTeam = async (req, res) => {
     let createTeam = await Team.create({
       team_name,
       club_id,
-      coach_id,
       age_group,
       practice_length,
       no_of_players,
-      preferred_timing,
+      practice_start_time,
+      practice_end_time,
       preferred_field_size,
       preferred_days,
-      practice_season,
-      rsvp_duration,
       is_travelling,
       travelling_date,
-      travelling_start,
-      travelling_end,
       region, 
       team_level, 
       gender
@@ -70,20 +62,15 @@ exports.updateTeam = async (req, res) => {
 
     const {
       team_name,
-      coach_id,
       age_group,
       practice_length,
       no_of_players,
-      preferred_timing,
+      practice_start_time,
+      practice_end_time,
       preferred_field_size,
       preferred_days,
-      practice_season,
-      rsvp_duration,
-      time_off,
       is_travelling,
       travelling_date,
-      travelling_start,
-      travelling_end,
       region, 
       team_level, 
       gender
@@ -95,20 +82,15 @@ exports.updateTeam = async (req, res) => {
       {
         $set: {
           team_name,
-          coach_id,
           age_group,
           practice_length,
           no_of_players,
-          preferred_timing,
+          practice_start_time,
+          practice_end_time,
           preferred_field_size,
           preferred_days,
-          practice_season,
-          rsvp_duration,
-          time_off,
           is_travelling,
           travelling_date,
-          travelling_start,
-          travelling_end,
           region, 
           team_level, 
           gender
@@ -224,7 +206,6 @@ exports.getTeamsByClubId = async (req, res) => {
     const totalPages = Math.ceil(totalTeams / pageSize);
 
     const teams = await Team.find(query)
-      .populate('coach_id') // Populate the coach details
       .sort(sortOption)
       .skip((currentPage - 1) * pageSize)
       .limit(pageSize);
@@ -255,7 +236,6 @@ exports.getTeamsList = async (req, res) => {
 
 
     const teams = await Team.find({club_id:clubId})
-      .populate('coach_id') // Populate the coach details
 
     if (!teams || teams.length == 0) {
       return res.status(404).json({ success: false, message: "No active teams found " });
@@ -300,102 +280,30 @@ exports.viewTeamById = async (req, res) => {
 
 exports.importTeams = async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: "No file uploaded" });
-    }
-
     let { club_id } = req.params;
 
-    const file = req.file;
-
-    // Check if the buffer is a valid Buffer instance
-    if (!Buffer.isBuffer(file.buffer)) {
-      return res.status(400).json({ success: false, message: "Invalid file buffer" });
-    }
-
-    // Create a temporary file path
-    const tempFilePath = path.join(__dirname, "temp.xlsx");
-
-    // Write the buffer to the temporary file
-    await fs.writeFile(tempFilePath, file.buffer);
-
-    // Load the workbook from the temporary file
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(tempFilePath);
-
-    // Remove the temporary file
-    await fs.unlink(tempFilePath);
-
-    const worksheet = workbook.getWorksheet(1);
-
-    const teamsData = [];
-
-    // Use for...of loop to ensure asynchronous operations complete before moving on
-   for (let rowNumber = 1; rowNumber <= worksheet.rowCount; rowNumber++) {
-      const row = worksheet.getRow(rowNumber);
-
-      // Skip header row
-      if (rowNumber !== 1) {
-        const [
-          ,
-          team_name,
-          coach_name,
-          age_group,
-          practice_length,
-          no_of_players,
-          preferred_timing,
-          preferred_field_size,
-          preferred_days,
-          gender,
-          team_level,
-          travel_time_start,
-          travel_time_end,
-          region,
-        ] = row.values;
-
-        let coach;
-
-        // Check if coach_name is defined
-        if (coach_name) {
-          // Split coach_name into first_name and last_name
-          const [first_name, last_name] = coach_name.includes(' ')
-            ? coach_name.split(' ')
-            : [coach_name, coach_name];
-
-          // Create or find the coach based on first_name and last_name
-          coach = await Coach.findOneAndUpdate(
-            { club_id, first_name, last_name },
-            { club_id, first_name, last_name },
-            { upsert: true, new: true }
-          );
-        }
-
-        teamsData.push({
-          club_id,
-          team_name,
-          coach_id: coach ? coach._id : null,
-          age_group,
-          practice_length : practice_length ? Number(practice_length.split(' ')[0]) : 0,
-          no_of_players,
-          preferred_timing,
-          preferred_field_size,
-          preferred_days: preferred_days ? preferred_days.split(',').map(day => day.trim()) : [],
-          gender,
-          team_level,
-          travel_time_start,
-          travel_time_end,
-          region,
-        });
-      }
-    }
-
+    const { team_data } = req.body;
+    console.log(team_data, "team data array")
     // Create teams without a transaction
     const createdTeams = await Promise.all(
-      teamsData.map(async (teamData) => {
-        const createTeam = await Team.create(teamData);
-        return createTeam;
+      team_data.map(async (teamData) => {
+    console.log(teamData, "teamData obj")
+
+        teamData.club_id = club_id
+    console.log(teamData, "teamData obj with club_id")
+
+        const findTeam = await Team.findOne({ team_name : teamData.team_name, club_id : club_id})
+    console.log(findTeam, "findTeam")
+
+        if(!findTeam){
+          const createTeam = await Team.create(teamData);
+    console.log(createTeam, "createTeam")
+
+          return createTeam;
+        }
       })
     );
+    console.log(createdTeams, "createdTeams")
 
     return res.status(201).json({
       success: true,

@@ -15,7 +15,8 @@ exports.createField = async (req, res) => {
       field_close_time,
       city,
       state,
-      zipcode
+      zipcode,
+      region
     } = req.body;
 
     const createField = await Field.create({
@@ -28,7 +29,8 @@ exports.createField = async (req, res) => {
       field_close_time,
       city,
       state,
-      zipcode
+      zipcode,
+      region
     });
 
     if (!createField) {
@@ -56,6 +58,7 @@ exports.updateField = async (req, res) => {
       city,
       state,
       zipcode,
+      region,
       teams_per_field,
       is_light_available,
       field_open_time,
@@ -71,6 +74,7 @@ exports.updateField = async (req, res) => {
           city,
           state,
           zipcode,
+          region,
           teams_per_field,
           is_light_available,
           field_open_time,
@@ -148,6 +152,7 @@ exports.getFieldsByClubId = async (req, res) => {
           { field_name: { $regex: new RegExp(search, 'i') } },
           { address: { $regex: new RegExp(search, 'i') } },
           { city: { $regex: new RegExp(search, 'i') } },
+          { region: { $regex: new RegExp(search, 'i') } },
           // Add other fields for search as needed
         ],
       };
@@ -251,82 +256,21 @@ exports.viewFieldById = async (req, res) => {
 
 exports.importFields = async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: "No file uploaded" });
-    }
-
-    let { club_id } = req.params;
-
-    const file = req.file;
-
-    // Check if the buffer is a valid Buffer instance
-    if (!Buffer.isBuffer(file.buffer)) {
-      return res.status(400).json({ success: false, message: "Invalid file buffer" });
-    }
-
-    // Create a temporary file path
-    const tempFilePath = path.join(__dirname, "temp.xlsx");
-
-    // Write the buffer to the temporary file
-    await fs.writeFile(tempFilePath, file.buffer);
-
-    // Load the workbook from the temporary file
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(tempFilePath);
-
-    // Remove the temporary file
-    await fs.unlink(tempFilePath);
-
-    const worksheet = workbook.getWorksheet(1);
-
-    const fieldsData = [];
-
-    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      if (rowNumber !== 1) {
-        // Skip header row
-        const [
-          ,
-          field_name,
-          address,
-          teams_per_field,
-          is_light_available,
-          field_open_time,
-          field_close_time,
-          city,
-          state,
-          zipcode
-        ] = row.values;
-
-        console.log(row.values,"row.values")
-        // Convert Date objects to time strings directly
-        const formattedFieldOpenTime = formatDateToString(field_open_time);
-        const formattedFieldCloseTime = formatDateToString(field_close_time);
-        console.log("formattedFieldOpenTime :- ",formattedFieldOpenTime, "formattedFieldCloseTime :- ",formattedFieldCloseTime)
-
-        fieldsData.push({
-          club_id,
-          field_name,
-          address,
-          teams_per_field,
-          is_light_available,
-          field_open_time : formattedFieldOpenTime,
-          field_close_time : formattedFieldCloseTime,
-          city,
-          state,
-          zipcode
-        });
-        
-      }
-    });
+    const { club_id } = req.params;
+    const { field_data } = req.body;
 
     // Create fields without a transaction
     const createFields = await Promise.all(
-      fieldsData.map(async (fieldData) => {
-        const createField = await Field.create(fieldData);
-        return createField;
+      field_data.map(async (fieldData) => {
+        fieldData.club_id = club_id
+        const findField =  await Field.findOne({ field_name : fieldData.field_name, club_id : club_id})
+        if(!findField){
+          fieldData.is_light_available = fieldData.is_light_available == 'Yes' ? true : false
+          const createField = await Field.create(fieldData);
+          return createField;
+        }
       })
     );
-
     return res.status(201).json({
       status: true,
       message: "Successfully imported fields",
@@ -337,8 +281,6 @@ exports.importFields = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
-
-
 
 exports.activateOrDeactivateField = async (req, res) => {
   try {

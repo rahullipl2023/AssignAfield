@@ -9,6 +9,7 @@ const authRouter = require('./auth');
 const clubRoutes = require('./clubRoutes');
 const dashboardRoutes = require('./dashboard')
 const scheduleRoutes = require('./schedule')
+const reservationRoutes = require('./reservation')
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
@@ -20,6 +21,7 @@ router.use('/team', teamsRouter);
 router.use('/coach', coachRouter);
 router.use('/field', fieldRouter);
 router.use('/schedule', scheduleRoutes);
+router.use('/reservation', reservationRoutes);
 router.use('/auth', authRouter);
 router.use('/api/v1', clubRoutes);
 router.use('/dashboard', dashboardRoutes);

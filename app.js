@@ -10,15 +10,15 @@ const authMiddleware = require('./middlewares/authMiddleware');
 const dotenv = require('dotenv');
 const { MONGO_URI, PORT } = require('./config/database.js');
 const mongoose = require('mongoose');
-const { updateSchedule } = require('./controllers/scheduleController.js')
-const cors = require('cors'); 
+const { generateSchedules } = require('./controllers/scheduleController.js')
+const cors = require('cors');
 const multer = require('multer');
 dotenv.config();
 
 // const app = express();
 // MongoDB Connection
 let connect = mongoose.connect(MONGO_URI);
-connect.then((db) => console.log("Connected to DB")).catch((err)=>{
+connect.then((db) => console.log("Connected to DB")).catch((err) => {
   console.error(err);
 })
 
@@ -30,7 +30,7 @@ const indexRouter = require('./routes/index');
 require('./config/passportConfig');
 
 const app = express();
-app.use(cors()); 
+app.use(cors());
 // Sequelize Sync (Create tables if they don't exist)
 // sequelize.sync();
 
@@ -66,11 +66,9 @@ app.use((err, req, res, next) => {
   }
   next();
 });
-
 async function someFunction() {
   try {
-    const scheduleUpdateResult = await updateSchedule();
-    console.log(scheduleUpdateResult); // Log the result returned by updateSchedule
+    const scheduleUpdateResult = await generateSchedules('65d3164bd38ec9fe247f8e2e');
   } catch (error) {
     console.error("Error updating schedule:", error);
   }

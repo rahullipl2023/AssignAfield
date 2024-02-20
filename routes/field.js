@@ -11,7 +11,7 @@ router.put('/delete-field/:fieldId', verifyToken, fieldController.softDeleteFiel
 router.get('/view-field/:fieldId', verifyToken, fieldController.viewFieldById);
 router.get('/view-field-by-club/:clubId', verifyToken, fieldController.getFieldsByClubId);
 router.get('/view-field-list/:clubId', verifyToken, fieldController.getFieldsList);
-router.post('/import-field/:club_id',verifyToken, uploadExcelFile,  fieldController.importFields)
+router.post('/import-field/:club_id',verifyToken, fieldController.importFields)
 router.put('/activate-or-deactivate-field/:fieldId', verifyToken, fieldController.activateOrDeactivateField)
 
 module.exports = router;

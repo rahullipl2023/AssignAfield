@@ -12,17 +12,13 @@ exports.createCoach = async (req, res) => {
       email,
       coaching_licence,
       contact,
-      address,
-      preferred_time,
+      coaching_start_time,
+      coaching_end_time,
       preferred_days,
-      multiple_teams_availability,
+      max_team_you_coach,
     } = req.body;
 
-    let coachProfileFile = req.files["coach_profile"]
-      ? req.files["coach_profile"][0]
-      : null;
-
-    multiple_teams_availability = multiple_teams_availability == 'true' ? true : false
+    let coachProfileFile = req.files["coach_profile"]? req.files["coach_profile"][0]: null;
 
     const createCoach = await Coach.create({
       club_id,
@@ -31,11 +27,11 @@ exports.createCoach = async (req, res) => {
       email,
       coaching_licence,
       contact,
-      address,
       coach_profile: coachProfileFile ? coachProfileFile.filename : "",
-      preferred_time,
+      coaching_start_time,
+      coaching_end_time,
       preferred_days,
-      multiple_teams_availability,
+      max_team_you_coach,
     });
 
     if (!createCoach) {
@@ -56,22 +52,25 @@ exports.createCoach = async (req, res) => {
 exports.updateCoach = async (req, res) => {
   try {
     const coachId = req.params.coachId;
-
+    let coachProfileFile = req.files["coach_profile"] ? req.files["coach_profile"][0] : null;
     let {
       first_name,
       last_name,
       email,
       contact,
-      address,
       coaching_licence,
       profile_picture,
-      preferred_time,
+      coaching_start_time,
+      coaching_end_time,
       preferred_days,
-      multiple_teams_availability,
+      max_team_you_coach,
     } = req.body;
 
-    let coachProfileFile = req.files["coach_profile"] ? req.files["coach_profile"][0] : null;
-    multiple_teams_availability = multiple_teams_availability == 'true' ? true : false
+    // Fetch the coach data
+    const coachData = await Coach.findById(coachId);
+
+    // Check if is_excel is true in the current coach data
+    const isExcelTrue = coachData.is_excel;
 
     const updatedCoach = await Coach.findByIdAndUpdate(
       coachId,
@@ -81,13 +80,14 @@ exports.updateCoach = async (req, res) => {
           last_name,
           email,
           contact,
-          address,
           coach_profile : coachProfileFile && coachProfileFile?.filename ? coachProfileFile?.filename : profile_picture,
-          preferred_time,
+          coaching_start_time,
+          coaching_end_time,
           preferred_days,
-          multiple_teams_availability,
+          max_team_you_coach,
           coaching_licence,
           updated_at: new Date(),
+          is_excel : isExcelTrue ? false : false
         },
       },
       { new: true }
@@ -255,78 +255,28 @@ exports.viewCoachById = async (req, res) => {
 
 exports.importCoaches = async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ success : false, msg: "No file uploaded" });
-    }
-
     let { club_id } = req.params;
 
-    const file = req.file;
-
-    // Check if the buffer is a valid Buffer instance
-    if (!Buffer.isBuffer(file.buffer)) {
-      return res.status(400).json({ success: false, msg: "Invalid file buffer" });
-    }
-
-    // Create a temporary file path
-    const tempFilePath = path.join(__dirname, "temp.xlsx");
-
-    // Write the buffer to the temporary file
-    await fs.writeFile(tempFilePath, file.buffer);
-
-    // Load the workbook from the temporary file
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(tempFilePath);
-
-    // Remove the temporary file
-    await fs.unlink(tempFilePath);
-
-    const worksheet = workbook.getWorksheet(1);
-
-    const coachesData = [];
-
-    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      if (rowNumber !== 1) {
-        // Skip header row
-        const [
-          ,
-          first_name,
-          last_name,
-          email,
-          coaching_licence,
-          contact,
-          address,
-          preferred_time,
-          preferred_days,
-          multiple_teams_availability,
-        ] = row.values;
-
-        const validMultipleTeamsAvailability = multiple_teams_availability == true ||
-          multiple_teams_availability == "TRUE" || multiple_teams_availability == "true" ? true : false;
-
-        coachesData.push({
-          club_id,
-          first_name,
-          last_name,
-          email,
-          coaching_licence,
-          contact,
-          address,
-          preferred_time,
-          preferred_days,
-          multiple_teams_availability: validMultipleTeamsAvailability,
-        });
-      }
-    });
-
+    const { coach_data } = req.body;
+    console.log(coach_data,"coach_data Array")
     // Create coaches without a transaction
     const createdCoaches = await Promise.all(
-      coachesData.map(async (coachData) => {
-        const createCoach = await Coach.create(coachData);
-        return createCoach;
+      coach_data.map(async (coachData) => {
+        console.log(coachData,"coachData obj")
+        coachData.club_id = club_id;
+        coachData.is_excel = true
+        console.log(coachData,"coachData obj with club_id")
+
+        const findCoach = await Coach.findOne({ email : coachData.email , club_id : club_id})
+        console.log(findCoach,"findCoach")
+        if(!findCoach){
+          const createCoach = await Coach.create(coachData);
+          console.log(createCoach,"createCoach")
+          return createCoach;
+        }
       })
     );
-
+    console.log(createdCoaches,"createdCoaches")
     return res.status(201).json({
       success : true,
       message: `Successfully imported coaches`,

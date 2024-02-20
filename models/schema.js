@@ -7,12 +7,12 @@ const clubSchema = new mongoose.Schema({
   club_name: { type: String },
   sub_user: String,
   number_of_teams: Number,
-  number_of_members : Number,
+  number_of_members: Number,
   address: String,
   contact: String,
   club_profile: String,
-  time_off_start : Date,
-  time_off_end : Date,
+  time_off_start: Date,
+  time_off_end: Date,
   club_email: { type: String },
   is_active: { type: Boolean, default: true },
   created_at: { type: Date, default: Date.now },
@@ -28,12 +28,13 @@ const coachSchema = new mongoose.Schema({
   email: { type: String },
   coaching_licence: String,
   contact: String,
-  address: String,
   coach_profile: String,
-  preferred_time: String,
+  coaching_start_time: String,
+  coaching_end_time: String,
   preferred_days: Array,
-  multiple_teams_availability: { type: Boolean, default: true },
+  max_team_you_coach: { type: Number, default: 1 },
   is_active: { type: Boolean, default: true },
+  is_excel: { type: Boolean, default: false },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
   deleted_at: Date,
@@ -44,9 +45,10 @@ const fieldSchema = new mongoose.Schema({
   club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
   field_name: { type: String },
   address: String,
-  city : String,
-  state : String,
-  zipcode : String,
+  city: String,
+  state: String,
+  zipcode: String,
+  region: String,
   location: String,
   teams_per_field: Number,
   is_light_available: { type: Boolean, default: false },
@@ -58,6 +60,26 @@ const fieldSchema = new mongoose.Schema({
   deleted_at: Date,
 });
 
+// Schema for reservations
+const reservationSchema = new mongoose.Schema({
+  club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
+  field_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Field' },
+  reservation_date: String,
+  reservation_day: String,
+  reservation_start_time: { type: String },
+  reservation_end_time: { type: String },
+  contact_number: String,
+  permit: String,
+  is_active: { type: Boolean, default: true },
+  created_at: { type: Date, default: Date.now },
+  updated_at: { type: Date, default: Date.now },
+  deleted_at: Date,
+  updated_start_time: String,
+  updated_end_time: String,
+  remaining_portion: String
+});
+
+//schema for schedules
 const scheduleSchema = new mongoose.Schema({
   team_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
   club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
@@ -75,29 +97,25 @@ const scheduleSchema = new mongoose.Schema({
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
   deleted_at: Date,
+  remaining_portion: String
 });
-
 
 // Schema for teams
 const teamSchema = new mongoose.Schema({
   team_name: { type: String },
   club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
-  coach_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Coach' },
   age_group: String,
   practice_length: Number,
   no_of_players: Number,
-  preferred_timing: String,
+  practice_start_time: String,
+  practice_end_time: String,
   preferred_field_size: String,
   preferred_days: Array,
-  practice_season: String,
-  rsvp_duration: String,
-  is_travelling : { type: Boolean, default: false },
-  travelling_date : Array,
-  travelling_start: Date,
-  travelling_end: Date,
-  region : String, 
-  team_level : String, 
-  gender : String,
+  is_travelling: { type: Boolean, default: false },
+  travelling_date: Array,
+  region: String,
+  team_level: String,
+  gender: String,
   is_active: { type: Boolean, default: true },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
@@ -111,8 +129,8 @@ const userSchema = new mongoose.Schema({
   email: { type: String },
   phone: String,
   profile_picture: String,
-  role : Number,
-  address : String,
+  role: Number,
+  address: String,
   password: { type: String },
   is_admin: { type: Boolean, default: false },
   is_active: { type: Boolean, default: true },
@@ -129,5 +147,7 @@ const Field = mongoose.model('Field', fieldSchema);
 const Schedule = mongoose.model('Schedule', scheduleSchema);
 const Team = mongoose.model('Team', teamSchema);
 const User = mongoose.model('User', userSchema);
+const Reservation = mongoose.model('Reservation', reservationSchema);
 
-module.exports = { Club, Coach, Field, Schedule, Team, User };
+
+module.exports = { Club, Coach, Field, Schedule, Team, User, Reservation };
