@@ -99,7 +99,7 @@ exports.getReservationsByClubId = async (req, res) => {
   try {
     const club_id = req.params.clubId;
     const { search, sort, page, pageSize } = req.query;
-    let query = { club_id };
+    let query = { club_id, is_active: true };
 
     if (search) {
       // Search for fields based on their names
@@ -136,7 +136,7 @@ exports.getReservationsByClubId = async (req, res) => {
     const pageSizeValue = parseInt(pageSize) || 10;
 
     const skip = (currentPage - 1) * pageSizeValue;
-    console.log(query,"query")
+    console.log(query, "query")
     const reservations = await Reservation.find(query)
       .populate("field_id")
       .sort(sortOption)
@@ -161,7 +161,7 @@ exports.getReservationsByClubId = async (req, res) => {
     return res.status(500).json({ success: false, error: "Server Error" });
   }
 };
- 
+
 exports.viewReservationById = async (req, res) => {
   try {
     const reservationId = req.params.reservationId;
@@ -196,15 +196,15 @@ exports.importReservation = async (req, res) => {
       reservation_data.map(async (data) => {
         try {
           data.club_id = club_id
-          console.log(data,"data...")
+          console.log(data, "data...")
           // Check if the field exists, if not create a new field
           let field = await Field.findOne({ field_name: data.field_name });
           if (!field) {
-            field = await Field.create({ 
+            field = await Field.create({
               field_name: data.field_name,
-              field_open_time : data.reservation_start_time,
-              field_close_time : data.reservation_end_time, 
-              is_active : true 
+              field_open_time: data.reservation_start_time,
+              field_close_time: data.reservation_end_time,
+              is_active: true
             });
           }
 

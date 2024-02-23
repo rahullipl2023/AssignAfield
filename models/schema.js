@@ -91,13 +91,13 @@ const scheduleSchema = new mongoose.Schema({
   practice_start_time: { type: String },
   practice_end_time: { type: String },
   practice_length: Number,
+  portion_name: String,
   contact_number: String,
   permit: String,
   is_active: { type: Boolean, default: true },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
   deleted_at: Date,
-  remaining_portion: String
 });
 
 // Schema for teams
@@ -140,6 +140,23 @@ const userSchema = new mongoose.Schema({
   club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
 });
 
+// Schema for booked slots
+const slotSchema = new mongoose.Schema({
+  club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
+  reservation_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Reservation' },
+  reservation_date: String,
+  //schedule_id : { type: mongoose.Schema.Types.ObjectId, ref: 'Schedule' },
+  field_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Field' },
+  //team_id : { type: mongoose.Schema.Types.ObjectId, ref: 'Team' },
+  //coach_id : { type: mongoose.Schema.Types.ObjectId, ref: 'Coach' },
+  coach_available: { type: Boolean, default: true },
+  reservation_time_portion: Array, // [{start_time : "", end_time : "", remainning_portion: ""}] 
+  //remaining_field_portion : String,
+  created_at: { type: Date, default: Date.now },
+  updated_at: { type: Date, default: Date.now },
+  deleted_at: Date,
+})
+
 // Model Definitions
 const Club = mongoose.model('Club', clubSchema);
 const Coach = mongoose.model('Coach', coachSchema);
@@ -148,6 +165,7 @@ const Schedule = mongoose.model('Schedule', scheduleSchema);
 const Team = mongoose.model('Team', teamSchema);
 const User = mongoose.model('User', userSchema);
 const Reservation = mongoose.model('Reservation', reservationSchema);
+const Slots = mongoose.model('Slots', slotSchema);
 
 
-module.exports = { Club, Coach, Field, Schedule, Team, User, Reservation };
+module.exports = { Club, Coach, Field, Schedule, Team, User, Reservation, Slots };

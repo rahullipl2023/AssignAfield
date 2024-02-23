@@ -149,9 +149,8 @@ function addMinutes(timing, minutes) {
   const newHour = Math.floor(totalMinutes / 60);
   const newMinute = totalMinutes % 60;
 
-  return `${newHour < 10 ? "0" : ""}${newHour}:${
-    newMinute < 10 ? "0" : ""
-  }${newMinute}`;
+  return `${newHour < 10 ? "0" : ""}${newHour}:${newMinute < 10 ? "0" : ""
+    }${newMinute}`;
 }
 
 // Helper function to determine compatible field based on team's preferred timing
@@ -172,5 +171,45 @@ function getCompatibleField(team, fields, preferredFieldSize) {
   });
 }
 
+async function resetPasswordMail2(email, link, userName) {
+  // Configuration for nodemailer
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT,
+    secure: false, // Change to true if using port 465 with SSL
+    auth: {
+      user: process.env.SMTP_USERNAME,
+      pass: process.env.SMTP_PASSWORD
+    }
+  });
+
+  // Email content
+  const mailOptions = {
+    from: process.env.SMTP_USERNAME,
+    to: email,
+    subject: "Reset Password",
+    html: resetPasswordTemplate(link, userName)
+  };
+
+  // Send email
+  await transporter.sendMail(mailOptions);
+}
+
+function resetPasswordTemplate(link, userName) {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Password Reset</title>
+    </head>
+    <body>
+      <h1>Hello ${userName},</h1>
+      <p>Someone requested a password reset for your account. If this was not you, please ignore this email.</p>
+      <p>To reset your password, click the following link:</p>
+      <a href="${link}">Reset Password</a>
+    </body>
+    </html>
+  `;
+}
 module.exports = HelperFunction;
-module.exports = { getRandomStartTime, getRandomEndTime, compareTimings, addMinutes, getCompatibleField }
+module.exports = { getRandomStartTime, getRandomEndTime, compareTimings, addMinutes, getCompatibleField, resetPasswordMail2 }

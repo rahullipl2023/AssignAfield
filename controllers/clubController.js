@@ -1,7 +1,8 @@
 const { Club, User } = require("../models/schema");
 const bcrypt = require("bcrypt");
 const { generateToken } = require("../middlewares/authMiddleware");
-
+const { resetPasswordMail2 } = require("../helper/insertQuery")
+const jwt = require('jsonwebtoken');
 exports.createClub = async (req, res) => {
   const {
     club_name,
@@ -105,8 +106,6 @@ exports.clubLogin = async (req, res) => {
     }
 
     const token = await generateToken(findUser);
-    console.log(token);
-    
     return res.status(200).json({
       success: true,
       message: "Logged in successfully",
@@ -127,9 +126,9 @@ exports.clubLogin = async (req, res) => {
 exports.getAllClubs = async (req, res) => {
   try {
     const clubs = await Club.find();
-    res.status(200).json({success : true, message : "Club details", clubs});
+    res.status(200).json({ success: true, message: "Club details", clubs });
   } catch (error) {
-    res.status(500).json({ success : false, error: "Internal Server Error" });
+    res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
 
@@ -138,11 +137,11 @@ exports.getClubById = async (req, res) => {
   try {
     const club = await Club.findById(req.params.id);
     if (!club) {
-      return res.status(404).json({ success : false, error: "Club not found" });
+      return res.status(404).json({ success: false, error: "Club not found" });
     }
-    res.status(200).json({success : true, message : "Club details",club});
+    res.status(200).json({ success: true, message: "Club details", club });
   } catch (error) {
-    res.status(500).json({ success : false, error: "Internal Server Error" });
+    res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
 
@@ -174,7 +173,7 @@ exports.updateClubById = async (req, res) => {
         number_of_members,
         time_off_start,
         time_off_end,
-        club_profile : clubProfileFile && clubProfileFile?.filename ? clubProfileFile?.filename : profile_image,
+        club_profile: clubProfileFile && clubProfileFile?.filename ? clubProfileFile?.filename : profile_image,
         contact,
         club_email,
       },
@@ -198,11 +197,11 @@ exports.deleteClubById = async (req, res) => {
   try {
     const deletedClub = await Club.findByIdAndDelete(req.params.id);
     if (!deletedClub) {
-      return res.status(404).json({ success : false, error: "Club not found" });
+      return res.status(404).json({ success: false, error: "Club not found" });
     }
-    res.status(204).json({success : true, message : "Club deleted ",});
+    res.status(204).json({ success: true, message: "Club deleted ", });
   } catch (error) {
-    res.status(500).json({ success : false, error: "Internal Server Error" });
+    res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
 
@@ -214,7 +213,7 @@ exports.getClubWithUser = async (req, res) => {
     const clubWithUserDetails = await User.find({ club_id: clubId, deleted_at: { $in: [null, undefined] } });
 
     if (!clubWithUserDetails || clubWithUserDetails.length === 0) {
-      return res.status(404).json({ success : true, error: "No active users found for the club" });
+      return res.status(404).json({ success: true, error: "No active users found for the club" });
     }
 
     // Return the user information with club details
@@ -225,6 +224,90 @@ exports.getClubWithUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching user with club:", error);
-    res.status(500).json({ success : true, error: "Internal Server Error" });
+    res.status(500).json({ success: true, error: "Internal Server Error" });
   }
 };
+
+
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const findUser = await User.findOne({ email });
+    if (findUser) {
+      const payload = {
+        _id: findUser._id,
+        email: findUser.email
+      };
+      const token = await generateToken(payload);
+      const link = `${process.env.AUTH_LINK}/createpassword/?token=${token}`;
+      await resetPasswordMail2(email, link, `${findUser.first_name} ${findUser.last_name}`);
+      return res.status(200).json({
+        success: true,
+        message: "New link sent to your email address",
+      });
+    } else {
+      return res.status(404).json({
+        success: false,
+        message: "Email does not exist",
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { password } = req.body;
+    console.log(password, "password")
+    const encryptedPassword = await bcrypt.hash(password, 10);
+    const user = await verifyToken(req);
+    console.log(user, "user")
+    if (user) {
+      const updateUser = await User.findByIdAndUpdate(user.userId, { password: encryptedPassword }, { new: true });
+      console.log(updateUser, "updateUser")
+      if (updateUser) {
+        return res.status(200).json({
+          success: true,
+          message: "Password changed successfully",
+        });
+      } else {
+        return res.status(500).json({
+          success: false,
+          message: "Failed to update password",
+        });
+      }
+    } else {
+      return res.status(401).json({
+        success: false,
+        message: "Token is invalid",
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+async function verifyToken(req) {
+  const token = req.headers.authorization;
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return decoded;
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
