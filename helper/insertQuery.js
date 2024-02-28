@@ -2,6 +2,7 @@
 const bcrypt = require("bcrypt");
 // const { QueryTypes } = require('sequelize');
 const pool = require("../config/database");
+const nodemailer = require('nodemailer');
 
 const HelperFunction = {
   createUser: async (username, password) => {
@@ -149,8 +150,9 @@ function addMinutes(timing, minutes) {
   const newHour = Math.floor(totalMinutes / 60);
   const newMinute = totalMinutes % 60;
 
-  return `${newHour < 10 ? "0" : ""}${newHour}:${newMinute < 10 ? "0" : ""
-    }${newMinute}`;
+  return `${newHour < 10 ? "0" : ""}${newHour}:${
+    newMinute < 10 ? "0" : ""
+  }${newMinute}`;
 }
 
 // Helper function to determine compatible field based on team's preferred timing

@@ -7,6 +7,10 @@ exports.dashboardDetailsByClubId = async (req, res) => {
 
     // Fetch club details and user details
     const clubDetails = await Club.findOne({ _id: clubId });
+
+    if(clubDetails && clubDetails.club_profile == "null"){
+      clubDetails.club_profile = null
+    }
     const userDetails = await User.findOne({ _id: userId });
 
     // Fetch counts for active coaches, teams, and fields
@@ -39,7 +43,7 @@ exports.dashboardDetailsByClubId = async (req, res) => {
     const combinedDetails = {
       club: clubDetails || {},
       user: userDetails || {},
-      schedules: schedules || [],
+      schedules : schedules || [],
       counts: {
         coach: activeCoachesCount || 0,
         team: activeTeamsCount || 0,

@@ -11,14 +11,14 @@ const dotenv = require('dotenv');
 const { MONGO_URI, PORT } = require('./config/database.js');
 const mongoose = require('mongoose');
 const { generateSchedules } = require('./controllers/scheduleController.js')
-const cors = require('cors');
+const cors = require('cors'); 
 const multer = require('multer');
 dotenv.config();
 
 // const app = express();
 // MongoDB Connection
 let connect = mongoose.connect(MONGO_URI);
-connect.then((db) => console.log("Connected to DB")).catch((err) => {
+connect.then((db) => console.log("Connected to DB")).catch((err)=>{
   console.error(err);
 })
 
@@ -30,7 +30,7 @@ const indexRouter = require('./routes/index');
 require('./config/passportConfig');
 
 const app = express();
-app.use(cors());
+app.use(cors()); 
 // Sequelize Sync (Create tables if they don't exist)
 // sequelize.sync();
 
@@ -68,7 +68,7 @@ app.use((err, req, res, next) => {
 });
 async function someFunction() {
   try {
-    const scheduleUpdateResult = await generateSchedules('65d3164bd38ec9fe247f8e2e');
+    const scheduleUpdateResult = await generateSchedules('65dd71a28512131eb74484d2');
   } catch (error) {
     console.error("Error updating schedule:", error);
   }

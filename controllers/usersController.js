@@ -3,7 +3,7 @@ const bcrypt = require("bcrypt");
 
 exports.createSubUser = async (req, res) => {
   try {
-    let { club_id, first_name, last_name, email, phone, password, is_admin, role, address } =
+    let { club_id, first_name, last_name, email, phone, password, is_admin, role, address,city, state, zipcode } =
       req.body;
 
     let userProfileFile = req.files["user_profile"]
@@ -28,7 +28,10 @@ exports.createSubUser = async (req, res) => {
         role,
         is_admin,
         club_id,
-        address
+        address,
+        city,
+        state,
+        zipcode
       });
 
       return res.status(201).json({
@@ -51,7 +54,7 @@ exports.createSubUser = async (req, res) => {
 
 exports.updateSubUser = async (req, res) => {
   try {
-    let { first_name, last_name, email, role, profile_picture, phone, address, user_id } =
+    let { first_name, last_name, email, role, profile_picture, phone, address,city, state, zipcode, user_id } =
       req.body;
 
     let userProfileFile = req.files["user_profile"] ? req.files["user_profile"][0] : null;
@@ -65,6 +68,9 @@ exports.updateSubUser = async (req, res) => {
           profile_picture : userProfileFile && userProfileFile?.filename ? userProfileFile?.filename : profile_picture,
           phone,
           address,
+          city,
+          state,
+          zipcode,
           email, 
           role,
         },
