@@ -7,6 +7,7 @@ const { uploadExcelFile } = require('../uploads/upload');
 router.get('/view-schedule/:scheduleId', verifyToken, scheduleController.viewScheduleById)
 router.get('/view-schedule-by-club/:clubId', verifyToken, scheduleController.getSchedulesByClubId)
 router.get('/view-schedule-by-team-coach/:clubId', verifyToken, scheduleController.getSchedulesByTeamOrCoach)
+router.get('/export-schedule-by-date-range/:clubId', verifyToken, scheduleController.exportSchedules)
 
 
 module.exports = router;
