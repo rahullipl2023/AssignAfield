@@ -1,4 +1,4 @@
-const { Team, Club } = require("../models/schema");
+const { Team, Club, Coach } = require("../models/schema");
 const ExcelJS = require("exceljs");
 const fs = require("fs").promises;
 const path = require("path");
@@ -8,6 +8,7 @@ exports.createTeam = async (req, res) => {
     let {
       team_name,
       club_id,
+      coach_id,
       age_group,
       practice_length,
       no_of_players,
@@ -17,15 +18,35 @@ exports.createTeam = async (req, res) => {
       preferred_days,
       is_travelling,
       travelling_date,
-      region, 
-      team_level, 
+      region,
+      team_level,
       gender
     } = req.body;
 
+    // Check if a coach_id is provided
+    let coachCount = 0;
+    let maxTeamsPerCoach = Infinity; // Default to no limit
+    if (coach_id) {
+      // Count how many teams the coach is currently coaching
+      coachCount = await Team.countDocuments({ coach_id });
+      // Get the coach details
+      const coach = await Coach.findById(coach_id);
+      if (coach) {
+        maxTeamsPerCoach = coach.max_team_you_coach;
+      }
+    }
+
+    // Check if the coach has reached the maximum limit
+    if (coachCount >= maxTeamsPerCoach) {
+      return res.status(400).json({ success: false, message: "Coach has reached maximum number of teams. Update number of teams under Coach." });
+    }
+
+    // Create the team
     let createTeam = await Team.create({
       team_name,
       club_id,
       age_group,
+      coach_id,
       practice_length,
       no_of_players,
       practice_start_time,
@@ -34,14 +55,12 @@ exports.createTeam = async (req, res) => {
       preferred_days,
       is_travelling,
       travelling_date,
-      region, 
-      team_level, 
+      region,
+      team_level,
       gender
     });
     if (!createTeam) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Error creating the team" });
+      return res.status(400).json({ success: false, message: "Error creating the team" });
     } else {
       return res.status(201).json({
         success: true,
@@ -57,12 +76,12 @@ exports.createTeam = async (req, res) => {
 
 exports.updateTeam = async (req, res) => {
   try {
-
     const team_id = req.params.teamId;
 
     const {
       team_name,
       age_group,
+      coach_id,
       practice_length,
       no_of_players,
       practice_start_time,
@@ -71,18 +90,39 @@ exports.updateTeam = async (req, res) => {
       preferred_days,
       is_travelling,
       travelling_date,
-      region, 
-      team_level, 
+      region,
+      team_level,
       gender
     } = req.body;
 
-    // Find the team by ID and update its details
+    // Get the current team details
+    const currentTeam = await Team.findById(team_id);
+
+    // Check if the coach is being updated
+    if (coach_id && coach_id !== currentTeam.coach_id) {
+      // Check the number of preexisting teams the new coach is associated with
+      const coachTeamsCount = await Team.countDocuments({ coach_id });
+
+      // Get coach details
+      const coach = await Coach.findById(coach_id);
+
+      // Check if the new coach is allowed to coach another team
+      if (coach && coach.max_team_you_coach <= coachTeamsCount) {
+        return res.status(400).json({
+          success: false,
+          message: "Coach has reached maximum number of teams. Update number of teams under Coach.",
+        });
+      }
+    }
+
+    // Update the team's details without checking coach's limit
     const updatedTeam = await Team.findByIdAndUpdate(
       team_id,
       {
         $set: {
           team_name,
           age_group,
+          coach_id,
           practice_length,
           no_of_players,
           practice_start_time,
@@ -91,8 +131,8 @@ exports.updateTeam = async (req, res) => {
           preferred_days,
           is_travelling,
           travelling_date,
-          region, 
-          team_level, 
+          region,
+          team_level,
           gender
         },
       },
@@ -206,6 +246,7 @@ exports.getTeamsByClubId = async (req, res) => {
     const totalPages = Math.ceil(totalTeams / pageSize);
 
     const teams = await Team.find(query)
+      .populate("coach_id")
       .sort(sortOption)
       .skip((currentPage - 1) * pageSize)
       .limit(pageSize);
@@ -235,7 +276,7 @@ exports.getTeamsList = async (req, res) => {
     const clubId = req.params.club_id;
 
 
-    const teams = await Team.find({club_id:clubId})
+    const teams = await Team.find({ club_id: clubId })
 
     if (!teams || teams.length == 0) {
       return res.status(404).json({ success: false, message: "No active teams found " });
@@ -257,7 +298,7 @@ exports.viewTeamById = async (req, res) => {
     const teamId = req.params.teamId;
 
     // Find the team by team ID
-    const team = await Team.findById(teamId);
+    const team = await Team.findById(teamId).populate("coach_id");
 
     if (!team) {
       return res
@@ -281,34 +322,92 @@ exports.viewTeamById = async (req, res) => {
 exports.importTeams = async (req, res) => {
   try {
     let { club_id } = req.params;
-
     const { team_data } = req.body;
-    console.log(team_data, "team data array")
-    // Create teams without a transaction
-    const createdTeams = await Promise.all(
+
+    let teamsCreated = [];
+    let teamsWithExceededCoachLimit = [];
+
+    await Promise.all(
       team_data.map(async (teamData) => {
-    console.log(teamData, "teamData obj")
+        teamData.club_id = club_id;
 
-        teamData.club_id = club_id
-    console.log(teamData, "teamData obj with club_id")
+        // Check for required keys
+        const requiredKeys = ['team_name', 'no_of_players', 'age_group', 'team_level', 'practice_start_time', 'practice_end_time', 'preferred_field_size', 'preferred_days'];
+        const missingKeys = requiredKeys.filter(key => {
+          const value = teamData[key];
+          if (Array.isArray(value)) {
+            return value.length == 0;
+          } else {
+            return typeof value != 'string' || value.trim() == '';
+          }
+        });
 
-        const findTeam = await Team.findOne({ team_name : teamData.team_name, club_id : club_id})
-    console.log(findTeam, "findTeam")
+        if (missingKeys.length > 0) {
+          teamData.error = `Missing or empty values for required keys: ${missingKeys.join(', ')}`;
+          teamsWithExceededCoachLimit.push(teamData);
+          return;
+        }
 
-        if(!findTeam){
+        // Check if coachName is provided
+        if (teamData.coachName) {
+          // Convert coachName to lowercase and extract first_name and last_name
+          let firstName, lastName;
+
+          const coachNameParts = teamData.coachName.toLowerCase().split(' ');
+          if (coachNameParts.length === 1) {
+            firstName = coachNameParts[0];
+            lastName = null //''
+          } else {
+            [firstName, lastName] = coachNameParts;
+          }
+          console.log(firstName, lastName)
+          // Check if coach exists (with both first_name and last_name in lowercase)
+          let coachId;
+          let query = { first_name: { $regex: new RegExp(firstName, "i") } };
+
+          // If last name is not null, include it in the query
+          if (lastName) {
+            query.last_name = { $regex: new RegExp(lastName, "i") };
+          }
+
+          const existingCoach = await Coach.findOne(query);
+          if (existingCoach) {
+            coachId = existingCoach._id;
+          } else {
+            // If coach doesn't exist, create new coach
+            const newCoach = await Coach.create({ first_name: firstName, last_name: lastName });
+            coachId = newCoach._id;
+          }
+          // Assign coach_id to teamData and remove coachName
+          teamData.coach_id = coachId;
+          // Check if coach has reached the maximum limit
+          const coachCount = await Team.countDocuments({ coach_id: coachId });
+          const coach = await Coach.findById(coachId);
+          if (coachCount >= coach.max_team_you_coach) {
+            delete teamData.coach_id;
+            teamData.error = "Coach has reached maximum number of teams. Update number of teams under Coach."
+            teamsWithExceededCoachLimit.push(teamData);
+            return;
+          }
+        }
+
+        const findTeam = await Team.findOne({ team_name: teamData.team_name, club_id: club_id, deleted_at: null });
+
+        if (!findTeam) {
+          delete teamData.coachName;
           const createTeam = await Team.create(teamData);
-    console.log(createTeam, "createTeam")
-
-          return createTeam;
+          teamsCreated.push(createTeam);
+        } else {
+          teamData.error = "Team Already exists."
+          teamsWithExceededCoachLimit.push(teamData);
         }
       })
     );
-    console.log(createdTeams, "createdTeams")
-
     return res.status(201).json({
       success: true,
       message: `Successfully imported teams`,
-      teams: createdTeams,
+      teamsCreated,
+      teamsWithExceededCoachLimit,
     });
   } catch (error) {
     console.error("Error in import teams:", error);
@@ -352,6 +451,6 @@ exports.activateOrDeactivateTeam = async (req, res) => {
       });
   } catch (error) {
     console.error("Error in activate/deactivate Team:", error);
-    return res.status(500).json({ success : false, message: "Server Error" });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };

@@ -1,6 +1,7 @@
 // Import necessary modules and models
 const { Field, Reservation } = require("../models/schema");
 const eventEmitter = require('./events');
+const ObjectId = require('mongoose').Types.ObjectId;
 
 // Create Reservation
 exports.createReservation = async (req, res) => {
@@ -95,71 +96,94 @@ exports.updateReservation = async (req, res) => {
 // Get Reservation By Club Id with Sort, Pagination, and Response Metadata
 exports.getReservationsByClubId = async (req, res) => {
   try {
-    const club_id = req.params.clubId;
+    const clubId = req.params.clubId;
     const { search, sort, page, pageSize } = req.query;
-    let query = { club_id };
 
+    // Construct base query
+    const query = { club_id: new ObjectId(clubId) };
+
+    // Add search criteria if provided
     if (search) {
-      // Search for fields based on their names
-      const [fields] = await Promise.all([
-        Field.find({ field_name: { $regex: search, $options: 'i' } })
-      ]);
-
-      // Extract IDs of the matched fields
+      const fields = await Field.find({ field_name: { $regex: search, $options: 'i' } });
       const fieldIds = fields.map(field => field._id);
-
-      // Construct the query for searching Reservations
-      query.$or = [
-        { field_id: { $in: fieldIds } }
-      ];
+      query.$or = [{ field_id: { $in: fieldIds } }];
     }
 
-    let sortOption;
-
-    if (sort == "1") {
-      sortOption = { "field_id.field_name": 1 };
-    } else if (sort == "2") {
-      sortOption = { "field_id.field_name": -1 };
-    } else if (sort == "3") {
-      sortOption = { reservation_start_time: 1 };
-    } else if (sort == "4") {
-      sortOption = { reservation_start_time: -1 };
-    } else if (sort == "5") {
-      sortOption = { reservation_date: 1 };
-    } else if (sort == "6") {
-      sortOption = { reservation_date: -1 };
+    // Construct sort option
+    const sortOption = {};
+    switch (sort) {
+      case '1':
+        sortOption.field_name = 1;
+        break;
+      case '2':
+        sortOption.field_name = -1;
+        break;
+      case '3':
+        sortOption.reservation_start_time = 1;
+        break;
+      case '4':
+        sortOption.reservation_start_time = -1;
+        break;
+      case '5':
+        sortOption.reservation_date = 1;
+        break;
+      case '6':
+        sortOption.reservation_date = -1;
+        break;
+      default:
+        // Handle default sorting here if needed
+        sortOption.created_at = -1;
+        break;
     }
 
-    const currentPage = parseInt(page) || 1;
-    const pageSizeValue = parseInt(pageSize) || 10;
-
+    // Parse pagination parameters
+    const currentPage = parseInt(page, 10) || 1;
+    const pageSizeValue = parseInt(pageSize, 10) || 10;
     const skip = (currentPage - 1) * pageSizeValue;
-    console.log(query,"query")
-    const reservations = await Reservation.find(query)
-      .populate("field_id")
-      .sort(sortOption)
-      .skip(skip)
-      .limit(pageSizeValue);
 
+    // Aggregate reservations
+    const reservations = await Reservation.aggregate([
+      { $match: query },
+      { $lookup: { from: 'fields', localField: 'field_id', foreignField: '_id', as: 'field_id' } },
+      { $unwind: '$field_id' },
+      {
+        $project: {
+          field_name: { $ifNull: ['$field_id.field_name', ''] },
+          club_id: { $ifNull: ['$club_id', ''] },
+          field_id: { $ifNull: ['$field_id', ''] },
+          reservation_date: { $ifNull: ['$reservation_date', ''] },
+          reservation_day: { $ifNull: ['$reservation_day', ''] },
+          reservation_start_time: { $ifNull: ['$reservation_start_time', ''] },
+          reservation_end_time: { $ifNull: ['$reservation_end_time', ''] },
+          contact_number: { $ifNull: ['$contact_number', ''] },
+          permit: { $ifNull: ['$permit', ''] },
+          is_active: { $ifNull: ['$is_active', 1] },
+          created_at: { $ifNull: ['$created_at', ''] },
+          field_id: '$field_id'
+        }
+      },
+      { $sort: sortOption },
+      { $skip: skip },
+      { $limit: pageSizeValue }
+    ]);
+
+    // Get total count and calculate total pages
     const totalCount = await Reservation.countDocuments(query);
     const totalPages = Math.ceil(totalCount / pageSizeValue);
 
-    return res.status(200).json({
+    // Send response
+    res.status(200).json({
       success: true,
-      message: "Reservations retrieved successfully",
-      reservations: reservations,
-      metadata: {
-        totalCount: totalCount,
-        currentPage: currentPage,
-        totalPages: totalPages,
-      },
+      message: 'Reservations retrieved successfully',
+      reservations,
+      metadata: { totalCount, currentPage, totalPages }
     });
   } catch (error) {
-    console.error("Error getting Reservations by club ID:", error);
-    return res.status(500).json({ success: false, error: "Server Error" });
+    console.error('Error getting Reservations by club ID:', error);
+    res.status(500).json({ success: false, error: 'Server Error' });
   }
 };
- 
+
 exports.viewReservationById = async (req, res) => {
   try {
     const reservationId = req.params.reservationId;
@@ -188,7 +212,7 @@ exports.importReservation = async (req, res) => {
   try {
     const club_id = req.params.clubId; // Obtaining club_id from query params
     const { reservation_data } = req.body;
-    
+
     const createReservation = [];
 
     for (const data of reservation_data) {
@@ -235,8 +259,6 @@ exports.importReservation = async (req, res) => {
     return res.status(500).json({ success: false, error: "Server Error" });
   }
 };
-
-
 
 const formatDateToString1 = (date) => {
   // Check if the input is a valid Date object

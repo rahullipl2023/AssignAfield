@@ -107,6 +107,7 @@ const scheduleSchema = new mongoose.Schema({
 const teamSchema = new mongoose.Schema({
   team_name: { type: String },
   club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
+  coach_id : { type: mongoose.Schema.Types.ObjectId, ref: 'Coach' },
   age_group: String,
   practice_length: Number,
   no_of_players: Number,
