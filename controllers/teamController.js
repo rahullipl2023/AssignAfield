@@ -2,6 +2,7 @@ const { Team, Club, Coach } = require("../models/schema");
 const ExcelJS = require("exceljs");
 const fs = require("fs").promises;
 const path = require("path");
+const ObjectId = require('mongoose').Types.ObjectId;
 
 exports.createTeam = async (req, res) => {
   try {
@@ -18,15 +19,14 @@ exports.createTeam = async (req, res) => {
       preferred_days,
       is_travelling,
       travelling_date,
-      region,
-      team_level,
+      region, 
+      team_level, 
       gender
     } = req.body;
-
     // Check if a coach_id is provided
     let coachCount = 0;
     let maxTeamsPerCoach = Infinity; // Default to no limit
-    if (coach_id) {
+    if (coach_id && (coach_id != '' || coach_id != null)) {
       // Count how many teams the coach is currently coaching
       coachCount = await Team.countDocuments({ coach_id });
       // Get the coach details
@@ -40,13 +40,16 @@ exports.createTeam = async (req, res) => {
     if (coachCount >= maxTeamsPerCoach) {
       return res.status(400).json({ success: false, message: "Coach has reached maximum number of teams. Update number of teams under Coach." });
     }
-
+    let coachObjectId = null;
+    if (coach_id && coach_id.length === 24) {
+        coachObjectId = new ObjectId(coach_id);
+    }
     // Create the team
     let createTeam = await Team.create({
       team_name,
       club_id,
       age_group,
-      coach_id,
+      coach_id : coachObjectId,
       practice_length,
       no_of_players,
       practice_start_time,
@@ -55,8 +58,8 @@ exports.createTeam = async (req, res) => {
       preferred_days,
       is_travelling,
       travelling_date,
-      region,
-      team_level,
+      region, 
+      team_level, 
       gender
     });
     if (!createTeam) {
@@ -90,8 +93,8 @@ exports.updateTeam = async (req, res) => {
       preferred_days,
       is_travelling,
       travelling_date,
-      region,
-      team_level,
+      region, 
+      team_level, 
       gender
     } = req.body;
 
@@ -131,8 +134,8 @@ exports.updateTeam = async (req, res) => {
           preferred_days,
           is_travelling,
           travelling_date,
-          region,
-          team_level,
+          region, 
+          team_level, 
           gender
         },
       },
@@ -276,7 +279,7 @@ exports.getTeamsList = async (req, res) => {
     const clubId = req.params.club_id;
 
 
-    const teams = await Team.find({ club_id: clubId })
+    const teams = await Team.find({club_id:clubId})
 
     if (!teams || teams.length == 0) {
       return res.status(404).json({ success: false, message: "No active teams found " });
@@ -330,7 +333,7 @@ exports.importTeams = async (req, res) => {
     await Promise.all(
       team_data.map(async (teamData) => {
         teamData.club_id = club_id;
-
+        
         // Check for required keys
         const requiredKeys = ['team_name', 'no_of_players', 'age_group', 'team_level', 'practice_start_time', 'practice_end_time', 'preferred_field_size', 'preferred_days'];
         const missingKeys = requiredKeys.filter(key => {
@@ -379,7 +382,7 @@ exports.importTeams = async (req, res) => {
             coachId = newCoach._id;
           }
           // Assign coach_id to teamData and remove coachName
-          teamData.coach_id = coachId;
+          teamData.coach_id = new ObjectId(coachId);
           // Check if coach has reached the maximum limit
           const coachCount = await Team.countDocuments({ coach_id: coachId });
           const coach = await Coach.findById(coachId);
@@ -390,8 +393,8 @@ exports.importTeams = async (req, res) => {
             return;
           }
         }
-
-        const findTeam = await Team.findOne({ team_name: teamData.team_name, club_id: club_id, deleted_at: null });
+        console.log(teamData,"team data")
+        const findTeam = await Team.findOne({ team_name: teamData.team_name, club_id: club_id, deleted_at : null });
 
         if (!findTeam) {
           delete teamData.coachName;
@@ -451,6 +454,6 @@ exports.activateOrDeactivateTeam = async (req, res) => {
       });
   } catch (error) {
     console.error("Error in activate/deactivate Team:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    return res.status(500).json({ success : false, message: "Server Error" });
   }
 };

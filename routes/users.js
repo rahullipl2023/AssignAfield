@@ -10,6 +10,8 @@ router.put('/update-sub-user', verifyToken, uploadSubUserProfile,  userControlle
 router.put('/delete-sub-user/:id', verifyToken, userController.softDeleteSubUser)
 router.get('/view-sub-user', verifyToken, userController.viewSubUserProfile)
 router.put('/activate-or-deactivate-user/:userId', verifyToken, userController.activateOrDeactivateSubUser)
+router.put('/change-password', verifyToken, userController.changePassword)
+
 
 
 module.exports = router;

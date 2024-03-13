@@ -158,7 +158,7 @@ exports.getReservationsByClubId = async (req, res) => {
           contact_number: { $ifNull: ['$contact_number', ''] },
           permit: { $ifNull: ['$permit', ''] },
           is_active: { $ifNull: ['$is_active', 1] },
-          created_at: { $ifNull: ['$created_at', ''] },
+          created_at : { $ifNull: ['$created_at', ''] },
           field_id: '$field_id'
         }
       },
@@ -214,9 +214,19 @@ exports.importReservation = async (req, res) => {
     const { reservation_data } = req.body;
 
     const createReservation = [];
+    const reservationsWithError = [];
 
     for (const data of reservation_data) {
       try {
+        // Check for missing or blank keys
+        const missingKeys = await validateReservationData(data);
+        if (missingKeys.length > 0) {
+          const error = `Missing or empty values for required keys: ${missingKeys.join(', ')}`;
+          data.error = error;
+          reservationsWithError.push(data);
+          continue; // Skip processing this data if missing or empty keys found
+        }
+
         data.club_id = club_id;
         // Check if the field exists
         let field = await Field.findOne({ field_name: data.field_name, club_id: club_id });
@@ -253,11 +263,21 @@ exports.importReservation = async (req, res) => {
       success: true,
       message: "Reservations imported successfully",
       reservations: createReservation.filter(reservation => reservation !== null),
+      reservationsWithError
     });
   } catch (error) {
     console.error("Error importing Reservations:", error);
     return res.status(500).json({ success: false, error: "Server Error" });
   }
+};
+
+// Function to validate reservation data
+const validateReservationData = async (data) => {
+  const requiredKeys = ['field_name', 'reservation_start_time', 'reservation_end_time', 'reservation_date'];
+  return requiredKeys.filter(key => {
+    const value = data[key];
+    return typeof value !== 'string' || value.trim() === '';
+  });
 };
 
 const formatDateToString1 = (date) => {

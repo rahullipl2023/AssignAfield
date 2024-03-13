@@ -204,3 +204,58 @@ exports.activateOrDeactivateSubUser = async (req, res) => {
     return res.status(500).json({ success : false, message: "Server Error" });
   }
 };
+
+exports.changePassword = async (req, res) => {
+  try {
+    let { userId, oldPassword, newPassword } = req.body;
+
+    // Retrieve the user from the database
+    const findUser = await User.findById(userId);
+
+    // If the user exists
+    if (findUser) {
+      // Compare the old password provided by the user with the hashed password stored in the database
+      const isOldPasswordCorrect = await bcrypt.compare(oldPassword, findUser.password);
+
+      if (isOldPasswordCorrect) {
+        // Hash the new password
+        const saltRounds = 10;
+        const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+        // Update the password in the database
+        const updatePassword = await User.findByIdAndUpdate(userId, { $set: { password: hashedNewPassword } });
+
+        if (updatePassword) {
+          res.status(200).json({
+            success: true,
+            message: 'Password changed successfully'
+          });
+        } else {
+          res.status(500).json({
+            success: false,
+            message: 'Failed to update password'
+          });
+        }
+      } else {
+        // Old password provided by the user doesn't match the password stored in the database
+        res.status(200).json({
+          success: false,
+          message: 'Incorrect old password'
+        });
+      }
+    } else {
+      // User not found
+      res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+  } catch (error) {
+    console.error("Error changing password:", error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+

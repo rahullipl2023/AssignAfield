@@ -11,8 +11,6 @@ exports.createField = async (req, res) => {
       address,
       teams_per_field,
       is_light_available,
-      field_open_time,
-      field_close_time,
       city,
       state,
       zipcode,
@@ -25,8 +23,6 @@ exports.createField = async (req, res) => {
       address,
       teams_per_field,
       is_light_available,
-      field_open_time,
-      field_close_time,
       city,
       state,
       zipcode,
@@ -256,31 +252,78 @@ exports.viewFieldById = async (req, res) => {
 
 exports.importFields = async (req, res) => {
   try {
+    // Extracting club_id from request parameters and field_data from request body
     const { club_id } = req.params;
     const { field_data } = req.body;
 
+    // Arrays to store created fields and fields with errors
+    let createdFields = [];
+    let fieldsWithErrors = [];
+
     // Create fields without a transaction
-    const createFields = await Promise.all(
+    await Promise.all(
       field_data.map(async (fieldData) => {
-        fieldData.club_id = club_id
-        const findField =  await Field.findOne({ field_name : fieldData.field_name, club_id : club_id})
-        if(!findField){
-          fieldData.is_light_available = fieldData.is_light_available == 'Yes' ? true : false
-          const createField = await Field.create(fieldData);
-          return createField;
+        // Check for required keys and validate field data
+        const missingKeys = validateFieldData(fieldData);
+
+        // If any required key is missing or empty, add field data to fieldsWithErrors
+        if (missingKeys.length > 0) {
+          fieldData.error = `Missing or empty values for required keys: ${missingKeys.join(', ')}`;
+          fieldsWithErrors.push(fieldData);
+          return;
+        }
+
+        // Assign club_id to field data
+        fieldData.club_id = club_id;
+
+        // Convert 'teams_per_field' to a number
+        fieldData.teams_per_field = parseInt(fieldData.teams_per_field);
+
+        // Check if field with the same name and club ID already exists
+        const existingField = await Field.findOne({ field_name: fieldData.field_name, club_id });
+
+        if (!existingField) {
+          // Convert 'Yes' or 'No' string to boolean for is_light_available field
+          fieldData.is_light_available = (fieldData.is_light_available === 'Yes');
+
+          // Create field if it doesn't exist
+          const createdField = await Field.create(fieldData);
+          createdFields.push(createdField);
+        } else {
+          // Add field data to fieldsWithErrors if field already exists
+          fieldData.error = "Field already exists.";
+          fieldsWithErrors.push(fieldData);
         }
       })
     );
+
+    // Return success response with created fields and fields with errors
     return res.status(201).json({
-      status: true,
+      success: true,
       message: "Successfully imported fields",
-      fields: createFields,
+      fields: createdFields,
+      fieldsWithErrors: fieldsWithErrors
     });
   } catch (error) {
+    // Return server error response if an error occurs
     console.error("Error in import fields:", error);
     return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
+
+// Function to validate field data
+const validateFieldData = (fieldData) => {
+  const requiredKeys = ['field_name', 'teams_per_field'];
+  return requiredKeys.filter(key => {
+    const value = fieldData[key];
+    if (key === 'teams_per_field') {
+      return isNaN(value);
+    } else {
+      return typeof value !== 'string' || value.trim() === '';
+    }
+  });
+};
+
 
 exports.activateOrDeactivateField = async (req, res) => {
   try {

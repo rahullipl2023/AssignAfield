@@ -26,7 +26,7 @@ async function generateToken  (user)  {
   const secretKey = process.env.JWT_SECRET;
 
   // Set the expiration time for the token (e.g., 1 hour)
-  const expiresIn = '8h';
+  const expiresIn = '1d';
 
   return jwt.sign(payload, secretKey, { expiresIn });
   // let dat =  jwt.sign(payload, secretKey, { expiresIn });

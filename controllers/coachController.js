@@ -18,7 +18,7 @@ exports.createCoach = async (req, res) => {
       max_team_you_coach,
     } = req.body;
 
-    let coachProfileFile = req.files["coach_profile"] ? req.files["coach_profile"][0] : null;
+    let coachProfileFile = req.files["coach_profile"]? req.files["coach_profile"][0]: null;
 
     const createCoach = await Coach.create({
       club_id,
@@ -35,10 +35,10 @@ exports.createCoach = async (req, res) => {
     });
 
     if (!createCoach) {
-      return res.status(400).json({ success: false, msg: "Error creating the coach" });
+      return res.status(400).json({ success : false, msg: "Error creating the coach" });
     } else {
       return res.status(201).json({
-        success: true,
+        success : true,
         message: `Successfully created ${first_name}`,
         coach: createCoach,
       });
@@ -80,31 +80,31 @@ exports.updateCoach = async (req, res) => {
           last_name,
           email,
           contact,
-          coach_profile: coachProfileFile && coachProfileFile?.filename ? coachProfileFile?.filename : profile_picture,
+          coach_profile : coachProfileFile && coachProfileFile?.filename ? coachProfileFile?.filename : profile_picture,
           coaching_start_time,
           coaching_end_time,
           preferred_days,
           max_team_you_coach,
           coaching_licence,
           updated_at: new Date(),
-          is_excel: isExcelTrue ? false : false
+          is_excel : isExcelTrue ? false : false
         },
       },
       { new: true }
     );
 
     if (!updatedCoach) {
-      return res.status(404).json({ success: false, msg: "Coach not found" });
+      return res.status(404).json({ success : false, msg: "Coach not found" });
     }
 
     return res.status(200).json({
-      success: true,
+      success : true,
       msg: `Successfully updated ${first_name}`,
       coach: updatedCoach,
     });
   } catch (error) {
     console.error("Error updating coach:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    return res.status(500).json({ success: false,  message: "Server Error" });
   }
 };
 
@@ -124,17 +124,17 @@ exports.softDeleteCoach = async (req, res) => {
     );
 
     if (!softDeletedCoach) {
-      return res.status(404).json({ success: false, msg: "Coach not found" });
+      return res.status(404).json({ success : false, msg: "Coach not found" });
     }
 
     return res.status(200).json({
-      success: true,
+      success : true,
       msg: `Successfully soft deleted ${softDeletedCoach.first_name}`,
       coach: softDeletedCoach,
     });
   } catch (error) {
     console.error("Error soft deleting coach:", error);
-    return res.status(500).json({ success: true, message: "Server Error" });
+    return res.status(500).json({ success : true, message: "Server Error" });
   }
 };
 
@@ -225,7 +225,7 @@ exports.getCoachesList = async (req, res) => {
       message: "Coaches list for the club",
       coaches: coaches,
     });
-
+    
   } catch (error) {
     console.error("Error fetching coaches by club ID:", error);
     return res.status(500).json({ success: false, error: "Internal Server Error" });
@@ -239,7 +239,7 @@ exports.viewCoachById = async (req, res) => {
     const coach = await Coach.findById(coachId);
 
     if (!coach) {
-      return res.status(404).json({ success: false, msg: "Coach not found" });
+      return res.status(404).json({ success : false, msg: "Coach not found" });
     }
 
     return res.status(200).json({
@@ -249,7 +249,7 @@ exports.viewCoachById = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching coach by coach ID:", error);
-    return res.status(500).json({ success: false, error: "Internal Server Error" });
+    return res.status(500).json({ success : false,  error: "Internal Server Error" });
   }
 };
 
@@ -324,6 +324,7 @@ const validateCoachData = async (coachData) => {
   });
 };
 
+
 exports.activateOrDeactivateCoach = async (req, res) => {
   try {
     const { coachId } = req.params;
@@ -331,7 +332,7 @@ exports.activateOrDeactivateCoach = async (req, res) => {
 
     // Validate is_active value
     if (is_active === undefined || typeof is_active !== 'boolean') {
-      return res.status(400).json({ success: false, msg: 'Invalid is_active value' });
+      return res.status(400).json({ success : false, msg: 'Invalid is_active value' });
     }
 
     // Update Coach document
@@ -342,12 +343,12 @@ exports.activateOrDeactivateCoach = async (req, res) => {
     );
 
     if (!updatedCoach) {
-      return res.status(404).json({ success: false, message: 'Coach not found' });
+      return res.status(404).json({ success : false, message: 'Coach not found' });
     }
     let status = is_active == true ? 'activated' : 'deactivated'
-    return res.status(200).json({ success: true, message: `Coach ${status} successfully`, coach: updatedCoach });
+    return res.status(200).json({ success : true, message: `Coach ${status} successfully`, coach: updatedCoach });
   } catch (error) {
     console.error('Error in activateCoach:', error);
-    return res.status(500).json({ success: false, message: 'Server Error' });
+    return res.status(500).json({ success : false , message: 'Server Error' });
   }
 };
