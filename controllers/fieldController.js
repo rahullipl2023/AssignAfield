@@ -1,4 +1,4 @@
-const { Field } = require("../models/schema");
+const { Field, Regions } = require("../models/schema");
 const ExcelJS = require("exceljs");
 const fs = require("fs").promises;
 const path = require("path");
@@ -117,11 +117,11 @@ exports.softDeleteField = async (req, res) => {
 
     return res.status(200).json({
       success : true,
-      message: `Successfully soft deleted ${softDeletedField.field_name}`,
+      message: `Successfully deleted ${softDeletedField.field_name}`,
       field: softDeletedField,
     });
   } catch (error) {
-    console.error("Error soft deleting field:", error);
+    console.error("Error deleting field:", error);
     return res.status(500).json({ success : false, message: "Server Error" });
   }
 };
@@ -260,42 +260,55 @@ exports.importFields = async (req, res) => {
     let createdFields = [];
     let fieldsWithErrors = [];
 
-    // Create fields without a transaction
-    await Promise.all(
-      field_data.map(async (fieldData) => {
-        // Check for required keys and validate field data
-        const missingKeys = validateFieldData(fieldData);
+    // Loop over field data sequentially
+    for (const fieldData of field_data) {
+      // Check for required keys and validate field data
+      const missingKeys = validateFieldData(fieldData);
 
-        // If any required key is missing or empty, add field data to fieldsWithErrors
-        if (missingKeys.length > 0) {
-          fieldData.error = `Missing or empty values for required keys: ${missingKeys.join(', ')}`;
-          fieldsWithErrors.push(fieldData);
-          return;
-        }
+      // If any required key is missing or empty, add field data to fieldsWithErrors
+      if (missingKeys.length > 0) {
+        fieldData.error = `Missing or empty values for required keys: ${missingKeys.join(', ')}`;
+        fieldsWithErrors.push(fieldData);
+        continue; // Continue to the next iteration
+      }
 
-        // Assign club_id to field data
-        fieldData.club_id = club_id;
+      // Check if region is blank, set it to 'all' if blank
+      if (!fieldData.region) {
+        fieldData.region = 'all';
+      }
+      // If region is provided, find or create it in Regions collection
+      const regionLower = fieldData.region.toLowerCase();
+      let regionDoc = await Regions.findOne({ 
+                                region: { $regex: new RegExp('^' + regionLower + '$', 'i') }, 
+                                club_id: club_id 
+                            });
+      if (!regionDoc) {
+        // If region does not exist, create a new region
+        regionDoc = await Regions.create({ region: fieldData.region, club_id : club_id });
+      }
 
-        // Convert 'teams_per_field' to a number
-        fieldData.teams_per_field = parseInt(fieldData.teams_per_field);
+      // Assign club_id to field data
+      fieldData.club_id = club_id;
 
-        // Check if field with the same name and club ID already exists
-        const existingField = await Field.findOne({ field_name: fieldData.field_name, club_id });
+      // Convert 'teams_per_field' to a number
+      fieldData.teams_per_field = parseInt(fieldData.teams_per_field);
 
-        if (!existingField) {
-          // Convert 'Yes' or 'No' string to boolean for is_light_available field
-          fieldData.is_light_available = (fieldData.is_light_available === 'Yes');
+      // Check if field with the same name and club ID already exists
+      const existingField = await Field.findOne({ field_name: fieldData.field_name, club_id });
 
-          // Create field if it doesn't exist
-          const createdField = await Field.create(fieldData);
-          createdFields.push(createdField);
-        } else {
-          // Add field data to fieldsWithErrors if field already exists
-          fieldData.error = "Field already exists.";
-          fieldsWithErrors.push(fieldData);
-        }
-      })
-    );
+      if (!existingField) {
+        // Convert 'Yes' or 'No' string to boolean for is_light_available field
+        fieldData.is_light_available = (fieldData.is_light_available === 'Yes');
+
+        // Create field if it doesn't exist
+        const createdField = await Field.create(fieldData);
+        createdFields.push(createdField);
+      } else {
+        // Add field data to fieldsWithErrors if field already exists
+        fieldData.error = "Field already exists.";
+        fieldsWithErrors.push(fieldData);
+      }
+    }
 
     // Return success response with created fields and fields with errors
     return res.status(201).json({
@@ -310,6 +323,7 @@ exports.importFields = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
+
 
 // Function to validate field data
 const validateFieldData = (fieldData) => {

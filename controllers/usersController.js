@@ -131,11 +131,11 @@ exports.softDeleteSubUser = async (req, res) => {
     // Continue with the response for a successful soft deletion
     return res.status(200).json({
       success: true,
-      message: "User soft deleted successfully.",
+      message: "User deleted successfully.",
       deletedUser: softDeletedUser,
     });
   } catch (error) {
-    console.error("Error soft deleting sub-user:", error.message);
+    console.error("Error deleting sub-user:", error.message);
     return res.status(500).json({ success: false, error: "Server Error" });
   }
 };

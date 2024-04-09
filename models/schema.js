@@ -63,6 +63,15 @@ const fieldSchema = new mongoose.Schema({
   deleted_at: Date,
 });
 
+// Schema for Regions
+const regionSchema = new mongoose.Schema({
+  region: { type: String },
+  club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
+  created_at: { type: Date, default: Date.now },
+  updated_at: { type: Date, default: Date.now },
+  deleted_at: Date,
+});
+
 // Schema for reservations
 const reservationSchema = new mongoose.Schema({
   club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
@@ -169,6 +178,7 @@ const Team = mongoose.model('Team', teamSchema);
 const User = mongoose.model('User', userSchema);
 const Reservation = mongoose.model('Reservation', reservationSchema);
 const Slots = mongoose.model('Slots', slotSchema);
+const Regions = mongoose.model('Regions', regionSchema);
 
 
-module.exports = { Club, Coach, Field, Schedule, Team, User, Reservation, Slots };
+module.exports = { Club, Coach, Field, Schedule, Team, User, Reservation, Slots, Regions };

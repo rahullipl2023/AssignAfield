@@ -132,7 +132,6 @@ exports.getSchedulesByClubId = async (req, res) => {
     const club_id = req.params.clubId;
     const { search, sort, page, pageSize } = req.query;
     let query = { club_id };
-
     if (search) {
       // Search for coaches, fields, and teams based on their names
       const [coaches, fields, teams] = await Promise.all([
@@ -206,8 +205,7 @@ exports.getSchedulesByTeamOrCoach = async (req, res) => {
   try {
     const club_id = req.params.clubId;
     const { team_id, coach_id, search, sort_by, page, pageSize } = req.query;
-
-    const query = {
+    let query = {
       club_id: new ObjectId(club_id),
       $or: [],
     };
@@ -220,21 +218,12 @@ exports.getSchedulesByTeamOrCoach = async (req, res) => {
       query.$or.push({ coach_id: new ObjectId(coach_id) });
     }
 
-    if (search) {
-      const searchRegex = { $regex: search, $options: "i" };
-      query.$or.push(
-        { team_id: searchRegex },
-        { field_id: searchRegex },
-        { coach_id: searchRegex }
-      );
-    }
-
     // Ensure that $or array is not empty
     if (query.$or.length === 0) {
       delete query.$or;
     }
 
-     // Construct sort option
+    // Construct sort option
     const sortOption = {};
     switch (sort_by) {
       case '1':
@@ -257,7 +246,7 @@ exports.getSchedulesByTeamOrCoach = async (req, res) => {
         break;
       default:
         // Handle default sorting here if needed
-        sortOption.created_at = -1;
+        sortOption.schedule_date = 1;
         break;
     }
 
@@ -265,29 +254,45 @@ exports.getSchedulesByTeamOrCoach = async (req, res) => {
     const pageSizeValue = parseInt(pageSize) || 10;
 
     const skip = (currentPage - 1) * pageSizeValue;
-    console.log(sortOption,"sortOption", "query", query)
-    const schedules = await Schedule.aggregate([
+
+    // Construct aggregation pipeline
+    const aggregationPipeline = [
       { $match: query },
       { $lookup: { from: 'teams', localField: 'team_id', foreignField: '_id', as: 'team_id' } },
       { $lookup: { from: 'coaches', localField: 'coach_id', foreignField: '_id', as: 'coach_id' } },
       { $lookup: { from: 'fields', localField: 'field_id', foreignField: '_id', as: 'field_id' } },
+      // Unwind arrays
       { $unwind: '$team_id' },
       { $unwind: '$coach_id' },
       { $unwind: '$field_id' },
+      // Project fields
       {
         $project: {
           team_name: { $ifNull: ['$team_id.team_name', ''] },
           club_id: { $ifNull: ['$club_id', ''] },
-          // field_id: { $ifNull: ['$field_id', ''] },
-          // coach_id: { $ifNull: ['$coach_id', ''] },
-          // team_id: { $ifNull: ['$team_id', ''] },
           field_portion: { $ifNull: ['$field_portion', ''] },
           schedule_day: { $ifNull: ['$schedule_day', ''] },
           schedule_date: { $ifNull: ['$schedule_date', ''] },
           practice_start_time: { $ifNull: ['$practice_start_time', ''] },
           practice_end_time: { $ifNull: ['$practice_end_time', ''] },
-          practice_length: { $ifNull: ['$practice_end_time', 0] },
-          portion_name: { $ifNull: ['$portion_name', ''] },
+          practice_length: { $ifNull: ['practice_length', 0] },
+          // portion_name: { $ifNull: ['$portion_name', ''] },
+          portion_name: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$portion_name", "A"] }, then: 1 },
+                { case: { $eq: ["$portion_name", "B"] }, then: 2 },
+                { case: { $eq: ["$portion_name", "C"] }, then: 3 },
+                { case: { $eq: ["$portion_name", "D"] }, then: 4 },
+                { case: { $eq: ["$portion_name", "E"] }, then: 5 },
+                { case: { $eq: ["$portion_name", "F"] }, then: 6 },
+                { case: { $eq: ["$portion_name", "G"] }, then: 7 },
+                { case: { $eq: ["$portion_name", "H"] }, then: 8 },
+                // Add more cases for other letters as needed
+              ],
+              default: "$portion_name" // If portion_name is not A, B, C, etc., keep the original value
+            }
+          },
           contact_number: { $ifNull: ['$contact_number', ''] },
           permit: { $ifNull: ['$permit', ''] },
           is_active: { $ifNull: ['$is_active', 1] },
@@ -297,10 +302,26 @@ exports.getSchedulesByTeamOrCoach = async (req, res) => {
           coach_id: '$coach_id',
         }
       },
+    ];
+
+
+    // Add $unwind stages conditionally based on the presence of coach_id and team_id
+    if (!coach_id) {
+      aggregationPipeline.push({ $unwind: '$coach_id' });
+    }
+    if (!team_id) {
+      aggregationPipeline.push({ $unwind: '$team_id' });
+    }
+
+    // Add remaining stages
+    aggregationPipeline.push(
       { $sort: sortOption },
       { $skip: skip },
       { $limit: pageSizeValue }
-    ]);
+    );
+
+    // Execute aggregation
+    const schedules = await Schedule.aggregate(aggregationPipeline);
 
     const totalCount = await Schedule.countDocuments(query);
     const totalPages = Math.ceil(totalCount / pageSizeValue);
@@ -364,17 +385,71 @@ exports.exportSchedules = async (req, res) => {
     const endDateObj = parseDate(endDate);
     // Construct query to find schedules within the date range
     const query = {
-      club_id : clubId,
+      club_id : new ObjectId(clubId),
       schedule_date: {
         $gte: startDate,
         $lte: endDate
       }
     };
+
+    const aggregationPipeline = [
+      { $match: query },
+      { $lookup: { from: 'teams', localField: 'team_id', foreignField: '_id', as: 'team_id' } },
+      { $lookup: { from: 'coaches', localField: 'coach_id', foreignField: '_id', as: 'coach_id' } },
+      { $lookup: { from: 'fields', localField: 'field_id', foreignField: '_id', as: 'field_id' } },
+      // Unwind arrays
+      { $unwind: '$team_id' },
+      { $unwind: '$coach_id' },
+      { $unwind: '$field_id' },
+      // Project fields
+      {
+        $project: {
+          team_name: { $ifNull: ['$team_id.team_name', ''] },
+          club_id: { $ifNull: ['$club_id', ''] },
+          field_portion: { $ifNull: ['$field_portion', ''] },
+          schedule_day: { $ifNull: ['$schedule_day', ''] },
+          // schedule_date: { $ifNull: ['$schedule_date', ''] },
+          schedule_date: {
+            $dateFromString: {
+              dateString: '$schedule_date',
+              format: '%m/%d/%Y'
+            }
+          },
+          practice_start_time: { $ifNull: ['$practice_start_time', ''] },
+          practice_end_time: { $ifNull: ['$practice_end_time', ''] },
+          practice_length: { $ifNull: ['practice_length', 0] },
+          // portion_name: { $ifNull: ['$portion_name', ''] },
+          portion_name: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$portion_name", "A"] }, then: 1 },
+                { case: { $eq: ["$portion_name", "B"] }, then: 2 },
+                { case: { $eq: ["$portion_name", "C"] }, then: 3 },
+                { case: { $eq: ["$portion_name", "D"] }, then: 4 },
+                { case: { $eq: ["$portion_name", "E"] }, then: 5 },
+                { case: { $eq: ["$portion_name", "F"] }, then: 6 },
+                { case: { $eq: ["$portion_name", "G"] }, then: 7 },
+                { case: { $eq: ["$portion_name", "H"] }, then: 8 },
+                // Add more cases for other letters as needed
+              ],
+              default: "$portion_name" // If portion_name is not A, B, C, etc., keep the original value
+            }
+          },
+          contact_number: { $ifNull: ['$contact_number', ''] },
+          permit: { $ifNull: ['$permit', ''] },
+          is_active: { $ifNull: ['$is_active', 1] },
+          created_at: { $ifNull: ['$created_at', ''] },
+          field_id: '$field_id',
+          team_id: '$team_id',
+          coach_id: '$coach_id',
+        }
+      },
+       // Sort by schedule_date and field_name
+      { $sort: { 'schedule_date': 1, 'field_id.field_name': 1 } }
+    ];
     // Retrieve schedules within the date range
-    const schedules = await Schedule.find(query)
-      .populate("team_id")
-      .populate("field_id")
-      .populate("coach_id");
+    const schedules = await Schedule.aggregate(aggregationPipeline)
+     
     if(schedules.length > 0){
       return res.status(200).json({
         success: true,
@@ -408,34 +483,30 @@ function parseDate(dateString) {
 
 exports.generateSchedules = async (club_id) => {
   try {
+    console.log("club_id :- ",club_id)
     // Fetch all active coaches
     const coaches = await Coach.find({ club_id: club_id, is_active: true });
-    // console.log("Coaches:", coaches);
 
     // Fetch all active teams
     const teams = await Team.find({ club_id: club_id, is_active: true , coach_id: { $exists: true } }).sort({ age_group: 1 });
-    // console.log("Teams:", teams);
 
     // Fetch all active reservations and populate the field_id
     const reservations = await Reservation.find({ club_id: club_id, is_active: true }).populate({
       path: 'field_id',
       options: { sort: { is_lights_available: 1 } } // Sort fields by is_lights_available in ascending order
     });
-    // console.log("Reservations:", reservations);
 
     // Iterate through each team
     for (const team of teams) {
-      console.log(team,"team")
-      // console.log("team:", team);
+      console.log("team data :- ",team)
       // Iterate through each reservation
       for (const reservation of reservations) {
-        console.log(reservation, "reservation");
         let findSlot = await Slots.find({ reservation_id: reservation._id, club_id: team.club_id })
         if (findSlot.length == 0) {
-          const field = await Field.findById(reservation.field_id);
+          const field = await Field.findById(reservation.field_id._id);
           const maxTeamsPerField = field.teams_per_field;
           const teamsScheduled = await Schedule.find({
-            field_id: reservation.field_id,
+            field_id: reservation.field_id._id,
             reservation_date: reservation.reservation_date
           });
           const remainingPortion = 1 / maxTeamsPerField * (maxTeamsPerField - teamsScheduled.length);
@@ -495,7 +566,6 @@ exports.generateSchedules = async (club_id) => {
               club_id: team.club_id,
               schedule_date: reservation1[0].reservation_date
             })
-            console.log(schedules,"Already exists schedule")
             if (schedules.length == 0) {
               await schedulePractice(team, portionNeeded, reservation1[0], findSlot[0].reservation_time_portion, findSlot[0]._id);
             }
@@ -514,7 +584,16 @@ async function isReservationWithinPreferredTiming(reservation, team) {
   const reservationDate = new Date(reservation.reservation_date);
   const reservationDay = reservationDate.toLocaleString("en-US", { weekday: "long" });
   // Check if the reservation day is one of the preferred days of the team
-  // if(team.region == reservation.field_id.region){
+  let region = false;
+
+  if (team.region.toLowerCase() == 'all' || team.region == '' || (reservation.field_id && reservation.field_id.region && (reservation.field_id.region.toLowerCase() == 'all' || reservation.field_id.region == ''))) {
+    region = true;
+  } else if (reservation.field_id && reservation.field_id.region && 
+      team.region.toLowerCase() == reservation.field_id.region.toLowerCase()) {
+    region = true;
+  }
+
+  if(region){
     if (!team.preferred_days.includes(reservationDay)) {
     console.log("Reservation day is not within team's preferred days.");
     return false;
@@ -538,11 +617,12 @@ async function isReservationWithinPreferredTiming(reservation, team) {
     const reservationEndTime = await convertTimeToMinutes(reservation.reservation_end_time);
     const preferredStartHour1 = await convertTimeToMinutes(team.practice_start_time);
     const adjustedPreferredEndTime = preferredStartHour1 + team.practice_length;
-    return reservationStartTime <= preferredStartHour1 && adjustedPreferredEndTime <= reservationEndTime;
-  // }else{
-  //   console.log("Team and field are not in same region")
-  //   return false
-  // }
+    return (reservationStartTime <= preferredStartHour1 && adjustedPreferredEndTime <= reservationEndTime) || (preferredStartHour1 >= reservationStartTime && adjustedPreferredEndTime <= reservationEndTime) ||
+    (preferredStartHour1 <= reservationEndTime && adjustedPreferredEndTime <= reservationEndTime);
+  }else{
+    console.log("Team and field are not in same region")
+    return false
+  }
 }
 
 // Function to Schedule new practice session
@@ -587,20 +667,17 @@ async function schedulePractice(team, portionNeeded, reservation, slot, slot_id)
 
   let isSlotAvailable = false;
   for (let slot of slotData) {
-    console.log(slot,"slot...375")
     for (let rData of slot.reservation_time_portion) {
-      const rstart_time = await convertTimeToMinutes(rData.start_time)
-      const rend_time = await convertTimeToMinutes(rData.end_time)
-      const pstart_time = await convertTimeToMinutes(practice_start_time)
-      const pend_time = await convertTimeToMinutes(practice_end_time)
-      console.log("rstart_time",rstart_time, '<=', "pstart_time",pstart_time,'&&',"rend_time",rend_time, '>=', "pend_time",pend_time, "381")
-      if (rstart_time <= pstart_time && rend_time >= pend_time) {
+      const rstart_time = await convertTimeToMinutes(rData.start_time);
+      const rend_time = await convertTimeToMinutes(rData.end_time);
+      const pstart_time = await convertTimeToMinutes(practice_start_time);
+      const pend_time = await convertTimeToMinutes(practice_end_time);
+      if (rstart_time <= pstart_time && rend_time >= pend_time){
         isSlotAvailable = true;
         break;
       }
     }
   } 
-  console.log(isSlotAvailable,"isSlotAvailable")
   if(isSlotAvailable){
       if (remainingTime <= reservationEndTime - calculatedStartTime) {
         // const remainingPortion = parseInt(reservation.field_id.field_portion) - parseInt(portionNeeded);
@@ -648,7 +725,6 @@ async function updateReservationArray(reservationArray, practice_start_time, pra
     if (slot && typeof slot.remaining_portion !== 'string') {
       slot.remaining_portion = slot.remaining_portion.toString();
     }
-    console.log(slot,"*****************")
     if (practice_start_time < slot.end_time && practice_end_time > slot.start_time) {
       if (practice_start_time > slot.start_time) {
         updatedReservationArray.push({
@@ -659,7 +735,7 @@ async function updateReservationArray(reservationArray, practice_start_time, pra
         });
       }
 
-      const remainingPortion = subtractPortions(slot.remaining_portion.toString(), field_portion.toString());
+      const remainingPortion = await subtractPortions(slot.remaining_portion.toString(), field_portion.toString());
       const numerator = parseInt(remainingPortion.split('/')[0]);
       if (numerator > 0) {
         updatedReservationArray.push({
@@ -684,62 +760,32 @@ async function updateReservationArray(reservationArray, practice_start_time, pra
   return updatedReservationArray;
 }
 
-// // Function to find Compatible coach of team
-// async function findCompatibleCoach(team, coaches, reservation) {
-//   for (const coach of coaches) {
-//     const availability1 = await checkCoachAvailability(coach, reservation);
-//     if (availability1) {
-//       return coach;
-//     }
-//   }
-//   return null; // Return null if no compatible coach is found
-// }
-
-// // Function to check coach's availability for the new reservation
-// async function checkCoachAvailability(coach, reservation) {
-//   const coachStartTime = await convertTimeToMinutes(coach.coaching_start_time);
-//   const coachEndTime = await convertTimeToMinutes(coach.coaching_end_time);
-//   const reservationStartTime = await convertTimeToMinutes(reservation.practice_start_time);
-//   const reservationEndTime = await convertTimeToMinutes(reservation.practice_end_time);
-
-//   const existingSchedules = await Schedule.find({
-//     coach_id: coach._id,
-//     schedule_date: reservation.reservation_date
-//   });
-
-//   if (existingSchedules.length >= coach.max_team_you_coach) {
-//     return false;
-//   }
-
-//   const promises = existingSchedules.map(async (schedule) => {
-//     const scheduleStartTime = await convertTimeToMinutes(schedule.practice_start_time);
-//     const scheduleEndTime = await convertTimeToMinutes(schedule.practice_end_time);
-//     const overlaps = await checkOverlaps(scheduleStartTime, reservationStartTime, scheduleEndTime, reservationEndTime);
-//     const availabilityOverlaps = await checkAvailability(coachStartTime, coachEndTime, reservationStartTime, reservationEndTime);
-//     return !overlaps && availabilityOverlaps;
-//   });
-
-//   const results = await Promise.all(promises);
-//   return results.every(result => result);
-// }
-
 // Function to find Compatible coach of team
 async function findCompatibleCoach(team, coaches, reservation) {
   // Get the coach assigned to the team
-  const coach = coaches.find(coach => coach._id === team.coach_id);
-  
-  // Check if the assigned coach meets the availability criteria
-  const isCompatible = await checkCoachAvailability(coach, reservation);
-  
-  if (isCompatible) {
-    return coach;
-  } else {
+  const coach = coaches.find(coach => {
+    console.log("coach data :- ",coach)
+    if(coach._id.equals(team.coach_id)){
+      console.log("Compatible Coach :- ", coach)
+      return coach
+    }
+  });
+  if(coach){
+    // Check if the assigned coach meets the availability criteria
+    const isCompatible = await checkCoachAvailability(coach, reservation, team);
+    if (isCompatible) {
+      return coach;
+    } else {
+      return null;
+    }
+  }else{
     return null;
   }
 }
 
 // Function to check coach's availability for the new reservation
-async function checkCoachAvailability(coach, reservation) {
+async function checkCoachAvailability(coach, reservation, team) {
+  console.log("Available Coach :- ",coach)
   const coachStartTime = await convertTimeToMinutes(coach.coaching_start_time);
   const coachEndTime = await convertTimeToMinutes(coach.coaching_end_time);
   const reservationStartTime = await convertTimeToMinutes(reservation.practice_start_time);
@@ -749,9 +795,8 @@ async function checkCoachAvailability(coach, reservation) {
   const otherTeamSchedules = await Schedule.find({
     coach_id: coach._id,
     schedule_date: reservation.reservation_date,
-    team_id: { $ne: reservation.team_id } // Exclude the current team's schedule
+    team_id: { $ne: team._id } // Exclude the current team's schedule
   });
-
   // Check if the reservation overlaps with any other team's practice time
   for (const schedule of otherTeamSchedules) {
     const scheduleStartTime = await convertTimeToMinutes(schedule.practice_start_time);
@@ -762,22 +807,35 @@ async function checkCoachAvailability(coach, reservation) {
       (reservationStartTime < scheduleStartTime && reservationEndTime > scheduleEndTime)
     ) {
       // There is an overlap with another team's schedule
+      console.log("There is an overlap with another team's schedule")
       return false;
     }
   }
+  // Split the date string into month, day, and year parts
+  const [month, day, year] = reservation.reservation_date.split('/');
 
+  // Create a new Date object using the year, month (zero-based), and day
+  const date = new Date(year, month - 1, day);
+
+  // Get the day of the week (0 for Sunday, 1 for Monday, ..., 6 for Saturday)
+  const dayOfWeek = date.getDay();
+
+  // Define an array with day names
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  // Get the name of the day using the day of the week
+  const reservation_day = days[dayOfWeek];
   // Check if the reservation time falls within the coach's working hours and preferred days
   const isAvailable = (
     coachStartTime <= reservationStartTime &&
     coachEndTime >= reservationEndTime &&
-    coach.preferred_days.includes(reservation.reservation_day)
+    coach.preferred_days.includes(reservation_day)
   );
-
   return isAvailable;
 }
 
 // Function to subtract two portion strings
-function subtractPortions(existingPortion, subtractedPortion) {
+async function subtractPortions(existingPortion, subtractedPortion) {
   // Split and trim the strings to extract numerator and denominator
   const existingParts = existingPortion.includes('/') ? existingPortion.trim().split('/').map(Number) : [parseInt(existingPortion), 1];
   const subtractedParts = subtractedPortion.trim().split('/').map(Number);
@@ -788,12 +846,12 @@ function subtractPortions(existingPortion, subtractedPortion) {
   const newNumerator = existingParts[0] * subtractedDenominator - subtractedParts[0] * existingParts[1];
   const newDenominator = existingParts[1] * subtractedDenominator;
 
-  const gcd = calculateGCD(newNumerator, newDenominator);
+  const gcd = await calculateGCD(newNumerator, newDenominator);
   return `${newNumerator / gcd}/${newDenominator / gcd}`;
 }
 
 // Function to calculate Greatest Common Divisor (GCD) using Euclidean algorithm
-function calculateGCD(a, b) {
+async function calculateGCD(a, b) {
   while (b !== 0) {
     let temp = b;
     b = a % b;

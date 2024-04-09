@@ -32,18 +32,53 @@ exports.dashboardDetailsByClubId = async (req, res) => {
       deleted_at: { $in: [null, undefined, ''] }
     });
 
-    const schedules = await Schedule.find({ club_id: clubId })
-      .sort({ created_at: 1 }) // Sort in descending order based on creation time
+    let schedules = await Schedule.find({ club_id: clubId })
+      .sort({ schedule_date: 1 }) // Sort in descending order based on creation time
       .limit(5) // Limit the result to the latest 5 schedules
       .populate("team_id") // Assuming 'team_name' is the field to be populated from the Team model
       .populate("field_id") // Assuming 'field_name' is the field to be populated from the Field model
       .populate("coach_id"); // Assuming 'first_name' and 'last_name' are the fields to be populated from the Coach model
+    
+    // Map through each schedule and modify the portion_name field
+    const modifiedSchedules = schedules.map(schedule => {
+      switch (schedule.portion_name) {
+        case "A":
+          schedule.portion_name = 1;
+          break;
+        case "B":
+          schedule.portion_name = 2;
+          break;
+        case "C":
+          schedule.portion_name = 3;
+          break;
+        case "D":
+          schedule.portion_name = 4;
+          break;
+        case "E":
+          schedule.portion_name = 5;
+          break;
+        case "F":
+          schedule.portion_name = 6;
+          break;
+        case "G":
+          schedule.portion_name = 7;
+          break;
+        case "H":
+          schedule.portion_name = 8;
+          break;
+        // Add more cases for other letters as needed
+        default:
+          schedule.portion_name = 0
+      }
+      schedule.portion_name = Number(schedule.portion_name)
+      return schedule;
+    });
 
     // Combine club and user details
     const combinedDetails = {
       club: clubDetails || {},
       user: userDetails || {},
-      schedules : schedules || [],
+      schedules : modifiedSchedules || [],
       counts: {
         coach: activeCoachesCount || 0,
         team: activeTeamsCount || 0,

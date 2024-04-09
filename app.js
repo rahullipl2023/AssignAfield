@@ -22,6 +22,15 @@ connect.then((db) => console.log("Connected to DB")).catch((err)=>{
   console.error(err);
 })
 
+// Define ANSI escape codes for colors
+const colors = {
+  reset: "\x1b[0m",
+  green: "\x1b[32m", // Green color
+  cyan: "\x1b[36m",   // Cyan color
+  red: "\x1b[31m",    // Red color
+  yellow: "\x1b[33m", // Yellow color
+  blue: "\x1b[34m"    // Blue color
+};
 
 const indexRouter = require('./routes/index');
 
@@ -41,8 +50,25 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+// Custom middleware function to log API execution time
+const logExecutionTime = (req, res, next) => {
+  const start = Date.now(); // Record the start time when the middleware is called
 
+  // Define a function to log the execution time after the response is sent
+  res.on('finish', () => {
+    const end = Date.now(); // Record the end time when the response is sent
+    const duration = end - start; // Calculate the execution duration
+    // Append execution time to the Morgan logger output
+    req._startTime = start; // Set the start time on the request object for use in Morgan logger
+    console.log(`-------> ${colors.blue}[${new Date().toLocaleString()}]${colors.reset} ${colors.yellow}API executed in${colors.reset} ${colors.green}${duration}ms${colors.reset} <-------`);
+  });
+
+  next(); // Call the next middleware in the chain
+};
+
+// Use the Morgan logger with combined format and custom middleware before handling routes
 app.use(logger('dev'));
+app.use(logExecutionTime);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());

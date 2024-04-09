@@ -17,7 +17,7 @@ exports.createCoach = async (req, res) => {
       preferred_days,
       max_team_you_coach,
     } = req.body;
-
+    preferred_days = preferred_days.split(",")
     let coachProfileFile = req.files["coach_profile"]? req.files["coach_profile"][0]: null;
 
     const createCoach = await Coach.create({
@@ -39,7 +39,7 @@ exports.createCoach = async (req, res) => {
     } else {
       return res.status(201).json({
         success : true,
-        message: `Successfully created ${first_name}`,
+        message: `Successfully created coach ${first_name}`,
         coach: createCoach,
       });
     }
@@ -65,10 +65,9 @@ exports.updateCoach = async (req, res) => {
       preferred_days,
       max_team_you_coach,
     } = req.body;
-
+    preferred_days = preferred_days.split(',')
     // Fetch the coach data
     const coachData = await Coach.findById(coachId);
-
     // Check if is_excel is true in the current coach data
     const isExcelTrue = coachData.is_excel;
 
@@ -99,7 +98,7 @@ exports.updateCoach = async (req, res) => {
 
     return res.status(200).json({
       success : true,
-      msg: `Successfully updated ${first_name}`,
+      msg: `Successfully updated coach ${first_name}`,
       coach: updatedCoach,
     });
   } catch (error) {
@@ -129,11 +128,11 @@ exports.softDeleteCoach = async (req, res) => {
 
     return res.status(200).json({
       success : true,
-      msg: `Successfully soft deleted ${softDeletedCoach.first_name}`,
+      msg: `Successfully deleted coach ${softDeletedCoach.first_name}`,
       coach: softDeletedCoach,
     });
   } catch (error) {
-    console.error("Error soft deleting coach:", error);
+    console.error("Error deleting coach:", error);
     return res.status(500).json({ success : true, message: "Server Error" });
   }
 };
@@ -141,8 +140,8 @@ exports.softDeleteCoach = async (req, res) => {
 exports.getCoachesByClubId = async (req, res) => {
   try {
     const clubId = req.params.club_id;
-    const { search, sort, page } = req.query;
-
+    let { search, sort, page } = req.query;
+    search = search.trim()
     // Pagination settings
     const pageSize = 10; // Number of items per page
     const currentPage = parseInt(page) || 1; // Current page, default is 1
@@ -154,15 +153,44 @@ exports.getCoachesByClubId = async (req, res) => {
 
     // Add search filter if provided
     if (search) {
-      query = {
-        ...query,
-        $or: [
-          { first_name: { $regex: new RegExp(search, 'i') } },
-          { last_name: { $regex: new RegExp(search, 'i') } },
-          { email: { $regex: new RegExp(search, 'i') } },
-          // Add other fields for search as needed
-        ],
-      };
+      let searchQuery;
+      const fullNameRegex = new RegExp(search, 'i');
+
+      // Check if the search input matches the full name directly
+      const fullNameMatch = await Coach.findOne(
+        { 
+          $expr: { 
+            $regexMatch: { 
+              input: { 
+                $concat: ["$first_name", " ", "$last_name"] 
+              }, 
+              regex: fullNameRegex 
+            } 
+          } 
+        });
+      
+      if (fullNameMatch) {
+        searchQuery = {
+          ...query,
+          $or: [
+            { full_name: fullNameRegex },
+            { $expr: { $regexMatch: { input: { $concat: ["$first_name", " ", "$last_name"] }, regex: fullNameRegex } } }
+          ]
+        };
+      } else {
+        // If no direct full name match, search by individual fields
+        searchQuery = {
+          ...query,
+          $or: [
+            { first_name: { $regex: new RegExp(search, 'i') } },
+            { last_name: { $regex: new RegExp(search, 'i') } },
+            { email: { $regex: new RegExp(search, 'i') } },
+            // Add other fields for search as needed
+          ],
+        };
+      }
+
+      query = searchQuery;
     }
 
     let sortOption = {};
@@ -218,7 +246,7 @@ exports.getCoachesList = async (req, res) => {
   try {
     const clubId = req.params.club_id;
 
-    const coaches = await Coach.find({ club_id: clubId });
+    const coaches = await Coach.find({ club_id: clubId, deleted_at: null }).sort({ first_name: 1, last_name: 1 });
 
     return res.status(200).json({
       success: true,
@@ -323,7 +351,6 @@ const validateCoachData = async (coachData) => {
     }
   });
 };
-
 
 exports.activateOrDeactivateCoach = async (req, res) => {
   try {

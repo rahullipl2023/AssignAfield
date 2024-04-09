@@ -208,6 +208,47 @@ exports.viewReservationById = async (req, res) => {
   }
 };
 
+exports.exportReservations = async (req, res) => {
+  try {
+    // Extract start date and end date from query parameters
+    const startDate = req.query.startDate;
+    const endDate = req.query.endDate;
+    const { clubId } = req.params
+    // Validate startDate and endDate format
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, error: "Start date and end date are required." });
+    }
+
+    // Construct query to find reservations within the date range
+    const query = {
+      club_id : clubId,
+      reservation_date: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    };
+    // Retrieve reservations within the date range
+    const reservations = await Reservation.find(query)
+      .populate("field_id")
+    if(reservations.length > 0){
+      return res.status(200).json({
+        success: true,
+        message: "Reservations within the date range retrieved successfully",
+        reservations: reservations
+      });
+    }else{
+      return res.status(200).json({
+        success: false,
+        message: "No reservations found within the date range",
+        reservations: reservations
+      });
+    }
+  } catch (error) {
+    console.error("Error exporting reservations:", error);
+    return res.status(500).json({ success: false, error: "Server Error" });
+  }
+};
+
 exports.importReservation = async (req, res) => {
   try {
     const club_id = req.params.clubId; // Obtaining club_id from query params

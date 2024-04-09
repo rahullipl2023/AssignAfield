@@ -1,4 +1,4 @@
-const { Club, User } = require("../models/schema");
+const { Club, User, Regions } = require("../models/schema");
 const bcrypt = require("bcrypt");
 const { generateToken } = require("../middlewares/authMiddleware");
 const { resetPasswordMail2 } = require("../helper/insertQuery")
@@ -331,4 +331,60 @@ async function verifyToken(req) {
     console.error(error);
     return null;
   }
-}
+};
+
+// Get Regions by club ID
+exports.getRegionByClubId = async (req, res) => {
+  try {
+    const clubId = req.params.clubId
+    const regions = await Regions.find({club_id : clubId});
+    if (!regions) {
+      return res.status(200).json({ success : false, message: "Empty Region List", regions : [] });
+    }
+    res.status(200).json({success : true, message : "Region List",regions});
+  } catch (error) {
+    res.status(500).json({ success : false, error: "Internal Server Error" });
+  }
+};
+
+exports.createRegion = async (req, res) => {
+  try {
+    const { clubId, region } = req.body; // Destructure clubId and region from request body
+    let regionQuery; // Variable to hold the region query
+
+    if (region === '') {
+      // If region is empty, set regionQuery to find 'all'
+      regionQuery = { region: 'all', club_id: clubId };
+    } else {
+      // If region is not empty, set regionQuery to find the region (case-insensitive)
+      const regionLower = region.toLowerCase(); // Convert region to lowercase
+      regionQuery = { region: { $regex: new RegExp('^' + regionLower + '$', 'i') }, club_id: clubId };
+    }
+
+    // Check if the region already exists for the given club
+    const existingRegion = await Regions.findOne(regionQuery);
+
+    if (existingRegion) {
+      // If the region already exists, return an error
+      return res.status(200).json({ success: false, error: "Region already exists for the club" });
+    } else {
+      // If the region does not exist, create a new region
+      const newRegion = new Regions({
+        region: region || 'all', // Use 'all' if region is empty
+        club_id: clubId
+      });
+
+      // Save the new region to the database
+      await newRegion.save();
+
+      // Return success response
+      return res.status(201).json({ success: true, message: "Region added to the list", region: newRegion });
+    }
+  } catch (error) {
+    // Handle internal server error
+    console.error("Error creating region:", error);
+    return res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+};
+
+

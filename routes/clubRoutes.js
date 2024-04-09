@@ -11,8 +11,10 @@ router.get('/clubs/:id',verifyToken, clubController.getClubById);
 router.put('/update-clubs/:id', verifyToken,uploadClubProfile, clubController.updateClubById);
 router.delete('/clubs/:id', verifyToken, clubController.deleteClubById);
 router.get('/getClubWithUser/:club_id',verifyToken, clubController.getClubWithUser);
-router.post('/forget-password', clubController.forgotPassword)
-router.post('/reset-password', clubController.resetPassword)
+router.post('/forget-password', clubController.forgotPassword);
+router.post('/reset-password', clubController.resetPassword);
+router.get('/regions/:clubId', verifyToken, clubController.getRegionByClubId)
+router.post('/create-region', verifyToken, clubController.createRegion)
 
 module.exports = router;
  
