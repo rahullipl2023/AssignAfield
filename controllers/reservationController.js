@@ -2,6 +2,7 @@
 const { Field, Reservation } = require("../models/schema");
 const eventEmitter = require('./events');
 const ObjectId = require('mongoose').Types.ObjectId;
+const { formatDate } = require('../helper/insertQuery')
 
 // Create Reservation
 exports.createReservation = async (req, res) => {
@@ -279,17 +280,32 @@ exports.importReservation = async (req, res) => {
             club_id: club_id
           });
         }
-        // Use the IDs of the created or existing field to create the reservation
-        const reservation = await Reservation.create({
+        let reservationDate = await formatDate(data.reservation_date)
+
+        const reservationExits = await Reservation.findOne({
           club_id: data.club_id,
           field_id: field._id,
-          reservation_date: data.reservation_date,
+          reservation_date: reservationDate,
           reservation_start_time: data.reservation_start_time,
           reservation_end_time: data.reservation_end_time,
-          contact_number: data.contact_number,
-          permit: data.permit,
         });
-        createReservation.push(reservation);
+
+        if(!reservationExits){
+          // Use the IDs of the created or existing field to create the reservation
+          const reservation = await Reservation.create({
+            club_id: data.club_id,
+            field_id: field._id,
+            reservation_date: reservationDate,
+            reservation_start_time: data.reservation_start_time,
+            reservation_end_time: data.reservation_end_time,
+            contact_number: data.contact_number,
+            permit: data.permit,
+          });
+          createReservation.push(reservation);
+        }else{
+          console.log("Already exists")
+          continue;
+        }
       } catch (error) {
         console.error("Error creating reservation:", error);
         // Push null if an error occurs during reservation creation
@@ -297,8 +313,9 @@ exports.importReservation = async (req, res) => {
       }
     }
 
-    // Emit an event after sending the response
-    eventEmitter.emit('reservationImported', club_id);
+    // // Emit an event after sending the response
+    eventEmitter.emit('reservationImported', club_id, createReservation);
+
 
     return res.status(200).json({
       success: true,

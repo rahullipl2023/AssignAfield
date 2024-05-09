@@ -213,5 +213,24 @@ function resetPasswordTemplate(link, userName) {
     </html>
   `;
 }
+
+async function formatDate(dateString) {
+  // Create a Date object from the input string
+  const date = new Date(dateString);
+
+  // Check if the Date object is valid (avoid errors)
+  if (isNaN(date.getTime())) {
+    return "Invalid date format";
+  }
+
+  // Extract year, month, and day components with zero-padding
+  const year = String(date.getFullYear()).padStart(4, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+  const day = String(date.getDate()).padStart(2, '0');
+
+  // Return the formatted date string
+  return `${month}/${day}/${year}`;
+}
+
 module.exports = HelperFunction;
-module.exports = { getRandomStartTime, getRandomEndTime, compareTimings, addMinutes, getCompatibleField, resetPasswordMail2 }
+module.exports = { getRandomStartTime, getRandomEndTime, compareTimings, addMinutes, getCompatibleField, resetPasswordMail2, formatDate }

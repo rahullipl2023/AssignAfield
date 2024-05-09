@@ -10,17 +10,31 @@ const authMiddleware = require('./middlewares/authMiddleware');
 const dotenv = require('dotenv');
 const { MONGO_URI, PORT } = require('./config/database.js');
 const mongoose = require('mongoose');
-const { generateSchedules } = require('./controllers/scheduleController.js')
 const cors = require('cors'); 
 const multer = require('multer');
 dotenv.config();
 
 // const app = express();
 // MongoDB Connection
-let connect = mongoose.connect(MONGO_URI);
-connect.then((db) => console.log("Connected to DB")).catch((err)=>{
-  console.error(err);
-})
+// let connect = mongoose.connect(MONGO_URI);
+// connect.then((db) => console.log("Connected to DB")).catch((err)=>{
+//   console.error(err);
+// })
+
+let connect; // Declare connection variable
+
+const establishDatabaseConnection = async () => {
+  if (!connect) {
+    try {
+      connect = await mongoose.connect(MONGO_URI);
+      console.log("Connected to DB");
+    } catch (err) {
+      console.error(err);
+    }
+  }
+};
+
+establishDatabaseConnection();
 
 // Define ANSI escape codes for colors
 const colors = {
@@ -92,15 +106,6 @@ app.use((err, req, res, next) => {
   }
   next();
 });
-async function someFunction() {
-  try {
-    const scheduleUpdateResult = await generateSchedules('65dd71a28512131eb74484d2');
-  } catch (error) {
-    console.error("Error updating schedule:", error);
-  }
-}
-
-// someFunction();
 
 
 

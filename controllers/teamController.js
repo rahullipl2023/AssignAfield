@@ -214,6 +214,17 @@ exports.getTeamsByClubId = async (req, res) => {
           { age_group: { $regex: new RegExp(search, 'i') } },
           { gender: { $regex: new RegExp(search, 'i') } },
           // Add other fields for search as needed
+          // Search by coach's name (first name or last name)
+          {
+            "coach_id": {
+              $in: await Coach.find({
+                $or: [
+                  { first_name: { $regex: new RegExp(search, 'i') } },
+                  { last_name: { $regex: new RegExp(search, 'i') } }
+                ]
+              }).distinct('_id')
+            }
+          }
         ],
       };
     }
@@ -480,21 +491,25 @@ exports.importTeams = async (req, res) => {
         const existingCoach = await Coach.findOne({ first_name: firstName, last_name: lastName, club_id: club_id });
         if (existingCoach) {
           teamData.coach_id = existingCoach._id;
-        } else {
-          // If coach doesn't exist, create new coach
-          const newCoach = await Coach.create({ first_name: firstName, last_name: lastName, club_id: club_id });
-          teamData.coach_id = newCoach._id;
-        }
+        } 
+        // else {
+        //   // If coach doesn't exist, create new coach
+        //   const newCoach = await Coach.create({ first_name: firstName, last_name: lastName, club_id: club_id });
+        //   teamData.coach_id = newCoach._id;
+        // }
 
         // Check if coach has reached the maximum limit
-        const coachCount = await Team.countDocuments({ coach_id: teamData.coach_id });
-        const coach = await Coach.findById(teamData.coach_id);
-        if (coachCount >= coach.max_team_you_coach) {
-          delete teamData.coach_id;
-          teamData.error = "Coach has reached the maximum number of teams. Update the number of teams under Coach.";
-          teamsWithExceededCoachLimit.push(teamData);
-          continue;
+        if(teamData.coach_id){
+          const coachCount = await Team.countDocuments({ coach_id: teamData.coach_id });
+          const coach = await Coach.findById(teamData.coach_id);
+          if (coachCount >= coach.max_team_you_coach) {
+            delete teamData.coach_id;
+            teamData.error = "Coach has reached the maximum number of teams. Update the number of teams under Coach.";
+            teamsWithExceededCoachLimit.push(teamData);
+            continue;
+          }
         }
+
       }
 
       // Check if the team already exists for the given club

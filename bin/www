@@ -3,41 +3,56 @@
 /**
  * Module dependencies.
  */
+const cluster = require('cluster');
+const os = require('os');
+const app = require('../app'); // Import the Express app here
+const debug = require('debug')('newprojectsetup:server');
+const http = require('http');
 
-var app = require('../app');
-var debug = require('debug')('newprojectsetup:server');
-var http = require('http');
-// const {PORT} = require('../config/database')
+let server; // Declare server variable outside of the else block
 
-/**
- * Get port from environment and store in Express.
- */
+if (cluster.isMaster) {
+  const numCPUs = os.cpus().length;
 
-var port = normalizePort( process.env.PORT || '8000');
-app.set('port', port);
+  console.log(`Master ${process.pid} is running`);
 
-/**
- * Create HTTP server.
- */
+  // Fork workers.
+  for (let i = 0; i < numCPUs; i++) {
+    cluster.fork();
+  }
 
-var server = http.createServer(app);
+  cluster.on('exit', (worker, code, signal) => {
+    console.log(`Worker ${worker.process.pid} died`);
+    // Fork a new worker if any worker dies
+    cluster.fork();
+  });
+} else {
+  /**
+   * Get port from environment and store in Express.
+   */
+  const port = normalizePort(process.env.PORT || '8000');
+  app.set('port', port);
 
-/**
- * Listen on provided port, on all network interfaces.
- */
+  /**
+   * Create HTTP server.
+   */
+  server = http.createServer(app); // Assign the created server to the variable
 
-server.listen(port,()=> {
-  console.log("Server is running at http://localhost:%s", port)
-});
-server.on('error', onError);
-server.on('listening', onListening);
+  /**
+   * Listen on provided port, on all network interfaces.
+   */
+  server.listen(port, () => {
+    console.log(`Server is running at http://111.118.252.246:${port}`);
+  });
+  server.on('error', onError);
+  server.on('listening', onListening);
+}
 
 /**
  * Normalize a port into a number, string, or false.
  */
-
 function normalizePort(val) {
-  var port = parseInt(val, 10);
+  const port = parseInt(val, 10);
 
   if (isNaN(port)) {
     // named pipe
@@ -55,13 +70,12 @@ function normalizePort(val) {
 /**
  * Event listener for HTTP server "error" event.
  */
-
 function onError(error) {
   if (error.syscall !== 'listen') {
     throw error;
   }
 
-  var bind = typeof port === 'string'
+  const bind = typeof port === 'string'
     ? 'Pipe ' + port
     : 'Port ' + port;
 
@@ -83,10 +97,9 @@ function onError(error) {
 /**
  * Event listener for HTTP server "listening" event.
  */
-
 function onListening() {
-  var addr = server.address();
-  var bind = typeof addr === 'string'
+  const addr = server.address();
+  const bind = typeof addr === 'string'
     ? 'pipe ' + addr
     : 'port ' + addr.port;
   debug('Listening on ' + bind);

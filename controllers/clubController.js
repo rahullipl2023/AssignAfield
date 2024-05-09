@@ -24,46 +24,38 @@ exports.createClub = async (req, res) => {
     password,
     is_admin,
   } = req.body;
-
   try {
+
     // Process uploaded files
-    let clubProfileFile = req.files["club_profile"]
-      ? req.files["club_profile"][0]
-      : null;
-    let profilePictureFile = req.files["profile_picture"]
-      ? req.files["profile_picture"][0]
-      : null;
-
-    // Create a new club
-    const newClub = new Club({
-      club_name,
-      sub_user,
-      number_of_members,
-      number_of_teams,
-      address,
-      state,
-      city,
-      zipcode,
-      contact,
-      club_profile: clubProfileFile ? clubProfileFile.filename : "", // Update club_profile with the file path
-      club_email,
-      time_off_start,
-      time_off_end,
-    });
-
-    const savedClub = await newClub.save();
-
-    const encryptedPassword = await bcrypt.hash(password, 10);
+    let clubProfileFile = req.files["club_profile"] ? req.files["club_profile"][0] : null;
+    let profilePictureFile = req.files["profile_picture"] ? req.files["profile_picture"][0] : null;
 
     const findUser = await User.find({ email: email });
-
     if (findUser.length > 0) {
       // User with the given email already exists
       res.status(400).json({
         success: false,
         message: "User email already exists",
       });
-    } else {
+    }else {
+      // Create a new club
+      const newClub = new Club({
+        club_name,
+        sub_user,
+        number_of_members,
+        number_of_teams,
+        address,
+        state,
+        city,
+        zipcode,
+        contact,
+        club_profile: clubProfileFile ? clubProfileFile.filename : "", // Update club_profile with the file path
+        club_email,
+        time_off_start,
+        time_off_end,
+      });
+      const savedClub = await newClub.save();
+      const encryptedPassword = await bcrypt.hash(password, 10);
       // Now that the club is created, use its _id to create the associated user
       const newUser = new User({
         first_name,
@@ -79,7 +71,7 @@ exports.createClub = async (req, res) => {
       const savedUser = await newUser.save();
       console.log("Club and User created successfully");
 
-      // Optionally, you can send a response back to the client
+      // Send a response back to the client
       res.status(201).json({
         success: true,
         message: "Club and User created successfully",
@@ -87,9 +79,8 @@ exports.createClub = async (req, res) => {
         user: savedUser,
       });
     }
-  } catch (error) {
+  }catch (error) {
     console.error("Error creating Club and User:", error);
-
     // Send an error response to the client
     res.status(500).json({
       success: false,

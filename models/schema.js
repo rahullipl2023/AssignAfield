@@ -169,6 +169,12 @@ const slotSchema = new mongoose.Schema({
   deleted_at: Date,
 })
 
+//Schema to check schedules are being created or not 
+const SchedulesCreatingSchema = new mongoose.Schema({
+  club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
+  is_schedules_creating : { type: Boolean, default: false }
+})
+
 // Model Definitions
 const Club = mongoose.model('Club', clubSchema);
 const Coach = mongoose.model('Coach', coachSchema);
@@ -179,6 +185,7 @@ const User = mongoose.model('User', userSchema);
 const Reservation = mongoose.model('Reservation', reservationSchema);
 const Slots = mongoose.model('Slots', slotSchema);
 const Regions = mongoose.model('Regions', regionSchema);
+const IsSchedulesCreating = mongoose.model('IsSchedulesCreating', SchedulesCreatingSchema);
 
 
-module.exports = { Club, Coach, Field, Schedule, Team, User, Reservation, Slots, Regions };
+module.exports = { Club, Coach, Field, Schedule, Team, User, Reservation, Slots, Regions, IsSchedulesCreating };

@@ -259,64 +259,71 @@ exports.importFields = async (req, res) => {
     // Arrays to store created fields and fields with errors
     let createdFields = [];
     let fieldsWithErrors = [];
+    if(field_data.length > 0){
+      // Loop over field data sequentially
+      for (const fieldData of field_data) {
+        // Check for required keys and validate field data
+        const missingKeys = await validateFieldData(fieldData);
 
-    // Loop over field data sequentially
-    for (const fieldData of field_data) {
-      // Check for required keys and validate field data
-      const missingKeys = validateFieldData(fieldData);
+        // If any required key is missing or empty, add field data to fieldsWithErrors
+        if (missingKeys.length > 0) {
+          fieldData.error = `Missing or empty values for required keys: ${missingKeys.join(', ')}`;
+          fieldsWithErrors.push(fieldData);
+          continue; // Continue to the next iteration
+        }
 
-      // If any required key is missing or empty, add field data to fieldsWithErrors
-      if (missingKeys.length > 0) {
-        fieldData.error = `Missing or empty values for required keys: ${missingKeys.join(', ')}`;
-        fieldsWithErrors.push(fieldData);
-        continue; // Continue to the next iteration
+        // Check if region is blank, set it to 'all' if blank
+        if (!fieldData.region) {
+          fieldData.region = 'all';
+        }
+        // If region is provided, find or create it in Regions collection
+        const regionLower = fieldData.region.toLowerCase();
+        let regionDoc = await Regions.findOne({ 
+                                  region: { $regex: new RegExp('^' + regionLower + '$', 'i') }, 
+                                  club_id: club_id 
+                              });
+        if (!regionDoc) {
+          // If region does not exist, create a new region
+          regionDoc = await Regions.create({ region: fieldData.region, club_id : club_id });
+        }
+
+        // Assign club_id to field data
+        fieldData.club_id = club_id;
+
+        // Convert 'teams_per_field' to a number
+        fieldData.teams_per_field = parseInt(fieldData.teams_per_field);
+
+        // Check if field with the same name and club ID already exists
+        const existingField = await Field.findOne({ field_name: fieldData.field_name, club_id });
+
+        if (!existingField) {
+          // Convert 'Yes' or 'No' string to boolean for is_light_available field
+          fieldData.is_light_available = (fieldData.is_light_available == 'Yes');
+
+          // Create field if it doesn't exist
+          const createdField = await Field.create(fieldData);
+          createdFields.push(createdField);
+        } else {
+          // Add field data to fieldsWithErrors if field already exists
+          fieldData.error = "Field already exists.";
+          fieldsWithErrors.push(fieldData);
+        }
       }
-
-      // Check if region is blank, set it to 'all' if blank
-      if (!fieldData.region) {
-        fieldData.region = 'all';
-      }
-      // If region is provided, find or create it in Regions collection
-      const regionLower = fieldData.region.toLowerCase();
-      let regionDoc = await Regions.findOne({ 
-                                region: { $regex: new RegExp('^' + regionLower + '$', 'i') }, 
-                                club_id: club_id 
-                            });
-      if (!regionDoc) {
-        // If region does not exist, create a new region
-        regionDoc = await Regions.create({ region: fieldData.region, club_id : club_id });
-      }
-
-      // Assign club_id to field data
-      fieldData.club_id = club_id;
-
-      // Convert 'teams_per_field' to a number
-      fieldData.teams_per_field = parseInt(fieldData.teams_per_field);
-
-      // Check if field with the same name and club ID already exists
-      const existingField = await Field.findOne({ field_name: fieldData.field_name, club_id });
-
-      if (!existingField) {
-        // Convert 'Yes' or 'No' string to boolean for is_light_available field
-        fieldData.is_light_available = (fieldData.is_light_available === 'Yes');
-
-        // Create field if it doesn't exist
-        const createdField = await Field.create(fieldData);
-        createdFields.push(createdField);
-      } else {
-        // Add field data to fieldsWithErrors if field already exists
-        fieldData.error = "Field already exists.";
-        fieldsWithErrors.push(fieldData);
-      }
+      // Return success response with created fields and fields with errors
+      return res.status(201).json({
+        success: true,
+        message: "Successfully imported fields",
+        fields: createdFields,
+        fieldsWithErrors: fieldsWithErrors
+      });
+    }else{
+        return res.status(201).json({
+        success: false,
+        message: "Empty field data",
+        fields: [],
+        fieldsWithErrors: []
+      });
     }
-
-    // Return success response with created fields and fields with errors
-    return res.status(201).json({
-      success: true,
-      message: "Successfully imported fields",
-      fields: createdFields,
-      fieldsWithErrors: fieldsWithErrors
-    });
   } catch (error) {
     // Return server error response if an error occurs
     console.error("Error in import fields:", error);
@@ -326,7 +333,7 @@ exports.importFields = async (req, res) => {
 
 
 // Function to validate field data
-const validateFieldData = (fieldData) => {
+const validateFieldData = async (fieldData) => {
   const requiredKeys = ['field_name', 'teams_per_field'];
   return requiredKeys.filter(key => {
     const value = fieldData[key];

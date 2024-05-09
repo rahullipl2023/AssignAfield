@@ -246,7 +246,7 @@ exports.getCoachesList = async (req, res) => {
   try {
     const clubId = req.params.club_id;
 
-    const coaches = await Coach.find({ club_id: clubId, deleted_at: null }).sort({ first_name: 1, last_name: 1 });
+    const coaches = await Coach.find({ club_id: clubId, deleted_at: null, is_active : true }).sort({ first_name: 1, last_name: 1 });
 
     return res.status(200).json({
       success: true,
@@ -309,7 +309,7 @@ exports.importCoaches = async (req, res) => {
         coachData.is_excel = true;
 
         // Check if coach with the same email and club ID already exists
-        const existingCoach = await Coach.findOne({ email: coachData.email, club_id });
+        const existingCoach = await Coach.findOne({ email: coachData.email, club_id, is_active: true, deleted_at: null });
 
         if (!existingCoach) {
           // Create coach if it doesn't exist
