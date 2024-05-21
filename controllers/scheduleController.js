@@ -1,7 +1,7 @@
 // Import necessary modules and models
 const { Team, Coach, Schedule, Field, IsSchedulesCreating } = require("../models/schema");
 const { ObjectId } = require('mongoose').Types;
-const {eventEmitter} = require('./events');
+const { eventEmitter } = require('./events');
 
 // Create Schedule 
 exports.createSchedule = async (req, res) => {
@@ -123,7 +123,7 @@ exports.getSchedulesByClubId = async (req, res) => {
   try {
     const club_id = req.params.clubId;
     const { search, sort, page, pageSize } = req.query;
-    console.log(sort,"sort value", typeof sort,"type")
+    console.log(sort, "sort value", typeof sort, "type")
     let query = { club_id };
     if (search) {
       // Search for coaches, fields, and teams based on their names
@@ -158,10 +158,10 @@ exports.getSchedulesByClubId = async (req, res) => {
       sortOption = { practice_start_time: -1 };
     } else if (sort == "5") {
       // Sorting by schedule date
-      sortOption = { }; // No initial sort option, will be sorted later
+      sortOption = {}; // No initial sort option, will be sorted later
     } else if (sort == "6") {
       // Sorting by schedule date in descending order
-      sortOption = { }; // No initial sort option, will be sorted later
+      sortOption = {}; // No initial sort option, will be sorted later
     }
 
     const currentPage = parseInt(page) || 1;
@@ -190,8 +190,8 @@ exports.getSchedulesByClubId = async (req, res) => {
         .lean(); // Use lean() to get plain JavaScript objects instead of Mongoose documents
 
       schedules = schedules.sort((a, b) => {
-        console.log(a,"a")
-        console.log(b,"b")
+        console.log(a, "a")
+        console.log(b, "b")
         const dateA = new Date(a.schedule_date);
         const dateB = new Date(b.schedule_date);
         console.log(dateA, dateB)
@@ -234,8 +234,8 @@ exports.getSchedulesByTeamOrCoach = async (req, res) => {
     const club_id = req.params.clubId;
     const { team_id, coach_id, search, sort_by, page, pageSize } = req.query;
 
-    let IsSchedules = await IsSchedulesCreating.findOne({ club_id : club_id})
-    if(IsSchedules && IsSchedules.is_schedules_creating){
+    let IsSchedules = await IsSchedulesCreating.findOne({ club_id: club_id })
+    if (IsSchedules && IsSchedules.is_schedules_creating) {
       return res.status(200).json({
         success: true,
         message: "Schedules are being created. Please wait until the process is completed.",
@@ -320,41 +320,7 @@ exports.getSchedulesByTeamOrCoach = async (req, res) => {
           practice_start_time: { $ifNull: ['$practice_start_time', ''] },
           practice_end_time: { $ifNull: ['$practice_end_time', ''] },
           practice_length: { $ifNull: ['practice_length', 0] },
-          // portion_name: { $ifNull: ['$portion_name', ''] },
-         portion_name: {
-            $switch: {
-              branches: [
-                { case: { $eq: ["$portion_name", "A"] }, then: 1 },
-                { case: { $eq: ["$portion_name", "B"] }, then: 2 },
-                { case: { $eq: ["$portion_name", "C"] }, then: 3 },
-                { case: { $eq: ["$portion_name", "D"] }, then: 4 },
-                { case: { $eq: ["$portion_name", "E"] }, then: 5 },
-                { case: { $eq: ["$portion_name", "F"] }, then: 6 },
-                { case: { $eq: ["$portion_name", "G"] }, then: 7 },
-                { case: { $eq: ["$portion_name", "H"] }, then: 8 },
-                { case: { $eq: ["$portion_name", "I"] }, then: 9 },
-                { case: { $eq: ["$portion_name", "J"] }, then: 10 },
-                { case: { $eq: ["$portion_name", "K"] }, then: 11 },
-                { case: { $eq: ["$portion_name", "L"] }, then: 12 },
-                { case: { $eq: ["$portion_name", "M"] }, then: 13 },
-                { case: { $eq: ["$portion_name", "N"] }, then: 14 },
-                { case: { $eq: ["$portion_name", "O"] }, then: 15 },
-                { case: { $eq: ["$portion_name", "P"] }, then: 16 },
-                { case: { $eq: ["$portion_name", "Q"] }, then: 17 },
-                { case: { $eq: ["$portion_name", "R"] }, then: 18 },
-                { case: { $eq: ["$portion_name", "S"] }, then: 19 },
-                { case: { $eq: ["$portion_name", "T"] }, then: 20 },
-                { case: { $eq: ["$portion_name", "U"] }, then: 21 },
-                { case: { $eq: ["$portion_name", "V"] }, then: 22 },
-                { case: { $eq: ["$portion_name", "W"] }, then: 23 },
-                { case: { $eq: ["$portion_name", "X"] }, then: 24 },
-                { case: { $eq: ["$portion_name", "Y"] }, then: 25 },
-                { case: { $eq: ["$portion_name", "Z"] }, then: 26 },
-                // Add more cases for other letters as needed
-              ],
-              default: "$portion_name" // If portion_name is not A, B, C, etc., keep the original value
-            }
-          },
+          portion_name: { $ifNull: ['$portion_name', 0] },
           contact_number: { $ifNull: ['$contact_number', ''] },
           permit: { $ifNull: ['$permit', ''] },
           is_active: { $ifNull: ['$is_active', 1] },
@@ -457,7 +423,7 @@ exports.exportSchedules = async (req, res) => {
     const endDateObj = parseDate(endDate);
     // Construct query to find schedules within the date range
     const query = {
-      club_id : new ObjectId(clubId),
+      club_id: new ObjectId(clubId),
       schedule_date: {
         $gte: startDate,
         $lte: endDate
@@ -490,41 +456,7 @@ exports.exportSchedules = async (req, res) => {
           practice_start_time: { $ifNull: ['$practice_start_time', ''] },
           practice_end_time: { $ifNull: ['$practice_end_time', ''] },
           practice_length: { $ifNull: ['practice_length', 0] },
-          // portion_name: { $ifNull: ['$portion_name', ''] },
-          portion_name: {
-            $switch: {
-              branches: [
-                { case: { $eq: ["$portion_name", "A"] }, then: 1 },
-                { case: { $eq: ["$portion_name", "B"] }, then: 2 },
-                { case: { $eq: ["$portion_name", "C"] }, then: 3 },
-                { case: { $eq: ["$portion_name", "D"] }, then: 4 },
-                { case: { $eq: ["$portion_name", "E"] }, then: 5 },
-                { case: { $eq: ["$portion_name", "F"] }, then: 6 },
-                { case: { $eq: ["$portion_name", "G"] }, then: 7 },
-                { case: { $eq: ["$portion_name", "H"] }, then: 8 },
-                { case: { $eq: ["$portion_name", "I"] }, then: 9 },
-                { case: { $eq: ["$portion_name", "J"] }, then: 10 },
-                { case: { $eq: ["$portion_name", "K"] }, then: 11 },
-                { case: { $eq: ["$portion_name", "L"] }, then: 12 },
-                { case: { $eq: ["$portion_name", "M"] }, then: 13 },
-                { case: { $eq: ["$portion_name", "N"] }, then: 14 },
-                { case: { $eq: ["$portion_name", "O"] }, then: 15 },
-                { case: { $eq: ["$portion_name", "P"] }, then: 16 },
-                { case: { $eq: ["$portion_name", "Q"] }, then: 17 },
-                { case: { $eq: ["$portion_name", "R"] }, then: 18 },
-                { case: { $eq: ["$portion_name", "S"] }, then: 19 },
-                { case: { $eq: ["$portion_name", "T"] }, then: 20 },
-                { case: { $eq: ["$portion_name", "U"] }, then: 21 },
-                { case: { $eq: ["$portion_name", "V"] }, then: 22 },
-                { case: { $eq: ["$portion_name", "W"] }, then: 23 },
-                { case: { $eq: ["$portion_name", "X"] }, then: 24 },
-                { case: { $eq: ["$portion_name", "Y"] }, then: 25 },
-                { case: { $eq: ["$portion_name", "Z"] }, then: 26 },
-                // Add more cases for other letters as needed
-              ],
-              default: "$portion_name" // If portion_name is not A, B, C, etc., keep the original value
-            }
-          },
+          portion_name: { $ifNull: ['$portion_name', 0] },
           contact_number: { $ifNull: ['$contact_number', ''] },
           permit: { $ifNull: ['$permit', ''] },
           is_active: { $ifNull: ['$is_active', 1] },
@@ -534,19 +466,19 @@ exports.exportSchedules = async (req, res) => {
           coach_id: '$coach_id',
         }
       },
-       // Sort by schedule_date and field_name
+      // Sort by schedule_date and field_name
       { $sort: { 'schedule_date': 1, 'field_id.field_name': 1 } }
     ];
     // Retrieve schedules within the date range
     const schedules = await Schedule.aggregate(aggregationPipeline)
-     
-    if(schedules.length > 0){
+
+    if (schedules.length > 0) {
       return res.status(200).json({
         success: true,
         message: "Schedules within the date range retrieved successfully",
         schedules: schedules
       });
-    }else{
+    } else {
       return res.status(200).json({
         success: false,
         message: "No schedules found within the date range",

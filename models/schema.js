@@ -9,9 +9,9 @@ const clubSchema = new mongoose.Schema({
   number_of_teams: Number,
   number_of_members: Number,
   address: String,
-  state : String,
-  city : String,
-  zipcode : String,
+  state: String,
+  city: String,
+  zipcode: String,
   contact: String,
   club_profile: String,
   time_off_start: Date,
@@ -103,7 +103,7 @@ const scheduleSchema = new mongoose.Schema({
   practice_start_time: { type: String },
   practice_end_time: { type: String },
   practice_length: Number,
-  portion_name: String,
+  portion_name: Number,
   contact_number: String,
   permit: String,
   is_active: { type: Boolean, default: true },
@@ -116,7 +116,7 @@ const scheduleSchema = new mongoose.Schema({
 const teamSchema = new mongoose.Schema({
   team_name: { type: String },
   club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
-  coach_id : { type: mongoose.Schema.Types.ObjectId, ref: 'Coach' , default: null},
+  coach_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Coach', default: null },
   age_group: String,
   practice_length: Number,
   no_of_players: Number,
@@ -172,7 +172,7 @@ const slotSchema = new mongoose.Schema({
 //Schema to check schedules are being created or not 
 const SchedulesCreatingSchema = new mongoose.Schema({
   club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
-  is_schedules_creating : { type: Boolean, default: false }
+  is_schedules_creating: { type: Boolean, default: false }
 })
 
 // Model Definitions
