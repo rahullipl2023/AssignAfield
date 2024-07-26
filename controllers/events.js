@@ -17,7 +17,7 @@ eventEmitter.once('reservationImported', async (club_id, createReservation) => {
         { $set: { is_schedules_creating: true } }
       );
     }
-
+    console.log("schedules generation started")
     await generateSchedules(club_id, createReservation);
     console.log('generateSchedules Completed');
 

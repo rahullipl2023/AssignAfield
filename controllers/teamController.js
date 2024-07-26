@@ -12,6 +12,7 @@ exports.createTeam = async (req, res) => {
       coach_id,
       age_group,
       practice_length,
+      minimum_length,
       no_of_players,
       practice_start_time,
       practice_end_time,
@@ -51,6 +52,7 @@ exports.createTeam = async (req, res) => {
       age_group,
       coach_id : coachObjectId,
       practice_length,
+      minimum_length,
       no_of_players,
       practice_start_time,
       practice_end_time,
@@ -86,6 +88,7 @@ exports.updateTeam = async (req, res) => {
       age_group,
       coach_id,
       practice_length,
+      minimum_length,
       no_of_players,
       practice_start_time,
       practice_end_time,
@@ -127,6 +130,7 @@ exports.updateTeam = async (req, res) => {
           age_group,
           coach_id,
           practice_length,
+          minimum_length,
           no_of_players,
           practice_start_time,
           practice_end_time,
@@ -446,9 +450,8 @@ exports.importTeams = async (req, res) => {
 
     for (const teamData of team_data) {
       teamData.club_id = club_id;
-
       // Check for required keys
-      const requiredKeys = ['team_name', 'no_of_players', 'age_group', 'team_level', 'practice_start_time', 'practice_end_time', 'preferred_field_size', 'preferred_days'];
+      const requiredKeys = ['team_name', 'no_of_players', 'age_group', 'team_level', 'practice_start_time', 'practice_end_time', 'preferred_field_size', 'preferred_days','minimum_length'];
       const missingKeys = requiredKeys.filter(key => {
         const value = teamData[key];
         if (Array.isArray(value)) {
@@ -460,6 +463,11 @@ exports.importTeams = async (req, res) => {
 
       if (missingKeys.length > 0) {
         teamData.error = `Missing or empty values for required keys: ${missingKeys.join(', ')}`;
+        teamsWithExceededCoachLimit.push(teamData);
+        continue;
+      }
+      if(teamData.practice_length < teamData.minimum_length){
+        teamData.error = `Ideal time can't be less than the minimum time`;
         teamsWithExceededCoachLimit.push(teamData);
         continue;
       }
@@ -509,7 +517,6 @@ exports.importTeams = async (req, res) => {
             continue;
           }
         }
-
       }
 
       // Check if the team already exists for the given club
@@ -536,8 +543,6 @@ exports.importTeams = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
-
-
 
 exports.activateOrDeactivateTeam = async (req, res) => {
   try {

@@ -1,12 +1,26 @@
+//OLD
+
 const { Team, Coach, Schedule, Field, Reservation, Slots } = require("../models/schema");
-const { ObjectId } = require('mongoose').Types;
+const mongoose = require('mongoose');
+const ObjectId = mongoose.Types.ObjectId;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 exports.generateSchedules = async (club_id, latestCreateReservation) => {
   try {
-    // Fetch all active teams
     const teams = await Team.find({ club_id: club_id, is_active: true, coach_id: { $exists: true } }).sort({ team_name: 1 });
+
+    const coachTeamsMap = teams.reduce((map, team) => {
+        if (!map[team.coach_id]) {
+            map[team.coach_id] = [];
+        }
+        map[team.coach_id].push(team);
+        return map;
+    }, {});
+
+    const sortedTeams = Object.values(coachTeamsMap)
+        .sort((a, b) => b.length - a.length)
+        .flat();
 
     // Extract the reservation ids from the latestCreateReservation array
     const reservationIds = latestCreateReservation.map(reservation => reservation._id);
@@ -15,22 +29,44 @@ exports.generateSchedules = async (club_id, latestCreateReservation) => {
     const reservations = await Reservation.find({ _id: { $in: reservationIds }, club_id: club_id, is_active: true })
       .populate('field_id');
 
-    const chunkSize = 7; // Define the chunk size
-
-    // Helper function to split the reservations into chunks
+    const chunkSize = 7;
     const chunkArray = (array, size) => {
-      const chunked = [];
-      for (let i = 0; i < array.length; i += size) {
-        chunked.push(array.slice(i, i + size));
+      let test = [];
+      let usedKey = [];
+      let newKey = 0;
+      let newKeys = 0;
+      let lastDate = '';
+      let hh = 0;
+
+      while (test.length < array.length / size) {
+        array.forEach((value, key) => {
+          if (lastDate !== value.reservation_date && !usedKey.includes(key)) {
+            if (Array.isArray(test[hh]) && test[hh].length > 6) {
+              hh++;
+              newKeys = 0;
+            }
+            if (!Array.isArray(test[hh])) {
+              test[hh] = [];
+            }
+            test[hh][newKeys] = value;
+            usedKey.push(key);
+            lastDate = value.reservation_date;
+            newKeys++;
+          }
+        });
       }
-      return chunked;
-    };
+      return test
+    }
 
     const reservationChunks = chunkArray(reservations, chunkSize);
+    // Dictionary to track the number of schedules for each team
+    let schedulesCount = {};
+    for (let team of sortedTeams) {
+      schedulesCount[team._id] = 0;
+    }
     for (let chunk of reservationChunks) {
-      //Iterate through each team
-      for await (const team of teams) {
-        console.log("Team Name :- ", team.team_name)
+      // Iterate through each team
+      for await (const team of sortedTeams) {
         let skipFlags = {}; // Initialize skip flags for each team
         const totalSchedulesTeamShouldGet = team.preferred_days.length;
         // Evaluate schedules with all conditions and count
@@ -39,30 +75,38 @@ exports.generateSchedules = async (club_id, latestCreateReservation) => {
         if (totalSchedulesForTeam >= totalSchedulesTeamShouldGet) {
           // Save schedules if total matches
           await saveSchedules(schedulesToSave);
+          schedulesCount[team._id] += totalSchedulesForTeam; // Update schedules count
+          continue;
         } else {
-          // Set flags one by one until all conditions are met  //, 'skipFieldLights'
-          for (const flag of ['skipTimingCheck', 'skipCoach', 'skipSlotAvailability', 'skipPreferredDays', 'skipCoachOverlap', 'skipRegion']) {
-
+          // Set flags one by one until all conditions are met
+          //['skipTimingCheck', 'skipCoach', 'skipSlotAvailability', //'skipPreferredDays', 'skipCoachOverlap', 'skipRegion']
+          for (const flag of ['skipTimingCheck', 'skipSlotAvailability', 'skipRegion']) {
             skipFlags[flag] = true;
             const { totalSchedulesForTeam, schedulesToSave } = await evaluateAndCountSchedules(chunk, team, skipFlags, totalSchedulesTeamShouldGet);
             // If total matches, save schedules
             if (totalSchedulesForTeam >= totalSchedulesTeamShouldGet) {
               await saveSchedules(schedulesToSave);
+              schedulesCount[team._id] += totalSchedulesForTeam; // Update schedules count
               break;
             }
           }
           // If after setting all flags, total schedules are still less than required, save schedules
           if (totalSchedulesForTeam < totalSchedulesTeamShouldGet) {
             await saveSchedules(schedulesToSave);
+            schedulesCount[team._id] += totalSchedulesForTeam; // Update schedules count
+            continue;
           }
         }
       }
+      // Sort teams based on the schedules count in ascending order
+      sortedTeams.sort((a, b) => schedulesCount[a._id] - schedulesCount[b._id]);
     }
-    console.log("<----------------------Practice Scheduling Completed---------------------->")
+
+    console.log("<----------------------Practice Scheduling Completed---------------------->");
   } catch (error) {
     console.log("Error generating Schedule:", error);
   }
-}
+};
 
 async function evaluateAndCountSchedules(reservations, team, skipFlags, totalSchedulesTeamShouldGet) {
   let totalSchedulesForTeam = 0;
@@ -71,59 +115,68 @@ async function evaluateAndCountSchedules(reservations, team, skipFlags, totalSch
   try {
     for await (let reservation of reservations) {
       if (totalSchedulesForTeam >= totalSchedulesTeamShouldGet) {
-        console.log("Total Schedules For Team :- ", totalSchedulesForTeam)
-        console.log("Schedules To Save :- ", schedulesToSave)
-        console.log("Total Schedules match the required count");
         return { totalSchedulesForTeam, schedulesToSave };
       }
-
-      let scheduleExists = await Schedule.find({
-        schedule_date: reservation.reservation_date,
+      const query = {
         team_id: new ObjectId(team._id),
-        club_id: new ObjectId(team.club_id)
-      });
-
-      if (scheduleExists && scheduleExists.length > 0) {
-        console.log("Schedule Already Exits");
+        club_id: new ObjectId(team.club_id),
+        schedule_date: reservation.reservation_date
+      }
+      // Check if a schedule already exists for the same date and team
+      const scheduleExists = await Schedule.findOne(query);
+      if (scheduleExists) {
         continue; // Skip to the next reservation
       }
       if (
         data?.reservation_date === reservation.reservation_date &&
-        data?.team_id === (team._id).toString() &&
-        data?.club_id === (team.club_id).toString()
+        data?.team_id === team._id.toString() &&
+        data?.club_id === team.club_id.toString()
       ) {
-        console.log("Reservation Already Exits");
         continue; // Skip to the next reservation
       } else {
-        console.log("Reservation Date :- ", reservation.reservation_date);
         const reservationDate = new Date(reservation.reservation_date);
         const reservationDay = reservationDate.toLocaleString("en-US", { weekday: "long" });
-        console.log("Reservation Day :- ", reservationDay);
-
 
         const findSlot = await Slots.find({ reservation_id: reservation._id, club_id: team.club_id, reservation_date: reservation.reservation_date });
         const hasAvailableSlot = findSlot.length > 0;
         const field = await Field.findById(reservation.field_id._id);
 
-        const teamPrefferdStartTime = await convertTimeToMinutes(team.practice_start_time)
-        const teamPrefferdEndTime = await convertTimeToMinutes(team.practice_end_time)
+        const teamPrefferdStartTime = await convertTimeToMinutes(team.practice_start_time);
+        const teamPrefferdEndTime = await convertTimeToMinutes(team.practice_end_time);
         const reservationStartTime = await convertTimeToMinutes(reservation.reservation_start_time);
         const reservationEndTime = await convertTimeToMinutes(reservation.reservation_end_time);
         const remainingTime = team.practice_length;
+        const diff = team.practice_length - team.minimum_length;
+
         // Check if the team's preferred start and end times fall within the reservation start and end times
         let calculatedStartTime = (teamPrefferdStartTime >= reservationStartTime && teamPrefferdEndTime <= reservationEndTime) ? teamPrefferdStartTime : reservationStartTime;
         // Calculate practice start and end times in minutes
-        const practice_start_time = await convertMinutesToTime(calculatedStartTime);
+        const practice_ideal_start_time = await convertMinutesToTime(calculatedStartTime);
+        const practice_start_time = await convertMinutesToTime(calculatedStartTime + diff);
         const practice_end_time = await convertMinutesToTime(calculatedStartTime + remainingTime);
-        const existingSchedules = await Schedule.find({
+        let schedulesForCurrentField = await Schedule.find({
           field_id: field._id,
           schedule_date: reservation.reservation_date,
           practice_start_time: practice_start_time,
           practice_end_time: practice_end_time
-        });
-        if (existingSchedules.length < Number(field.teams_per_field) + 2) {
+        }).count();
+        if (Number(field.teams_per_field) > schedulesForCurrentField) {
           if (!hasAvailableSlot) {
-            const isfieldPortionAvailable = await compareFractions(field.teams_per_field, team.preferred_field_size)
+            const region = await checkRegion(reservation, team, skipFlags);
+            const prefferedDay = await checkTeamsPrefferedDay(reservationDay, team, skipFlags);
+            const teamTravelling = await checkTeamTravelling(team, reservation);
+            const prefferedTime = await checkTeamPrefferedTime(reservation, team, skipFlags);
+            if (!prefferedDay) {
+              continue;
+            }
+            if(teamTravelling){
+              continue;
+            }
+            if (!region && !prefferedTime) {
+              continue;
+            }
+
+            const isfieldPortionAvailable = await compareFractions(field.teams_per_field, team.preferred_field_size);
             if (isfieldPortionAvailable < 0) {
               continue;
             }
@@ -147,26 +200,19 @@ async function evaluateAndCountSchedules(reservations, team, skipFlags, totalSch
 
             const savedSlotEntry = await bookedSlotEntry.save();
             const savedSlotId = savedSlotEntry._id;
-
-            const region = await checkRegion(reservation, team, skipFlags);
-            const prefferedDay = await checkTeamsPrefferedDay(reservationDay, team, skipFlags);
-            const teamTravelling = await checkTeamTravelling(team, reservation);
-            const prefferedTime = await checkTeamPrefferedTime(reservation, team, skipFlags);
-            if (!region && !prefferedDay && teamTravelling && !prefferedTime) {
-              continue;
-            }
             const portionNeeded = team.preferred_field_size;
-            const scheduleData = await schedulePractice(team, portionNeeded, reservation, reservationArray, savedSlotId, skipFlags);
+            const scheduleData = await schedulePractice(team, portionNeeded, reservation, reservationArray, savedSlotId, skipFlags,schedulesToSave);
             if (scheduleData && Object.keys(scheduleData).length > 0) {
               totalSchedulesForTeam++;
               schedulesToSave.push(scheduleData);
               data.reservation_date = reservation.reservation_date;
               data.team_id = team._id.toString();
               data.club_id = team.club_id.toString();
+              schedulesForCurrentField++;
             }
           } else {
             findSlot[0].reservation_time_portion = findSlot[0].reservation_time_portion.filter(slot => parseInt((slot.remaining_portion.toString()).split('/')[0]) > 0);
-            const isfieldPortionAvailable = await checkFieldPortion(findSlot[0].reservation_time_portion, team.preferred_field_size)
+            const isfieldPortionAvailable = await checkFieldPortion(findSlot[0].reservation_time_portion, team.preferred_field_size);
             if (!isfieldPortionAvailable) {
               continue;
             }
@@ -174,69 +220,97 @@ async function evaluateAndCountSchedules(reservations, team, skipFlags, totalSch
             const prefferedDay = await checkTeamsPrefferedDay(reservationDay, team, skipFlags);
             const teamTravelling = await checkTeamTravelling(team, reservation);
             const prefferedTime = await checkTeamPrefferedTime(reservation, team, skipFlags);
-            if (!region && !prefferedDay && teamTravelling && !prefferedTime) {
+            if (!prefferedDay) {
+              continue;
+            }
+            if(teamTravelling){
+              continue;
+            }
+            if (!region && !prefferedTime) {
               continue;
             }
             const portionNeeded = team.preferred_field_size;
-            const scheduleData = await schedulePractice(team, portionNeeded, reservation, findSlot[0].reservation_time_portion, findSlot[0]._id, skipFlags);
+            const scheduleData = await schedulePractice(team, portionNeeded, reservation, findSlot[0].reservation_time_portion, findSlot[0]._id, skipFlags,schedulesToSave);
             if (scheduleData && Object.keys(scheduleData).length > 0) {
               totalSchedulesForTeam++;
               schedulesToSave.push(scheduleData);
               data.reservation_date = reservation.reservation_date;
               data.team_id = team._id.toString();
               data.club_id = team.club_id.toString();
+              schedulesForCurrentField++;
             }
           }
-        } else {
-          console.log("Existing Schedules are more than the Fields requirement continue....");
-          continue;
         }
       }
     }
-    console.log("Total Schedules For Team :- ", totalSchedulesForTeam)
-    console.log("Schedules To Save :- ", schedulesToSave)
     return { totalSchedulesForTeam, schedulesToSave };
   } catch (error) {
     console.error('Error:', error);
   }
-}
+};
 
 async function saveSchedules(schedules) {
-  // Save schedules to the database
-  for await (item of schedules) {
-
-    const scheduleEntry = new Schedule({
-      team_id: item.team_id,
-      club_id: item.club_id,
-      coach_id: item.coach_id,
-      field_id: item.field_id,
-      field_portion: item.field_portion,
-      schedule_date: item.schedule_date,
-      practice_start_time: item.practice_start_time,
-      practice_end_time: item.practice_end_time,
-      practice_length: item.practice_length,
-      portion_name: item.portion_name
+  for await (const item of schedules) {
+    // Check if a schedule exists for the given parameters
+    let existingSchedule = await Schedule.findOne({
+      team_id: new ObjectId(item.team_id),
+      club_id: new ObjectId(item.club_id),
+      schedule_date: item.schedule_date
     });
-    let savedSchedule = await scheduleEntry.save();
-    console.log("Saved Schedule in DB :- ", savedSchedule);
-    console.log("<-------------------Schedule Created---------------->")
-    let rsArray = item.slot.length > 0 ? item.slot : [];
-    let updatedReservationArray = await updateReservationArray(rsArray, item.practice_start_time, item.practice_end_time, item.field_portion);
-    let updateSlot = await Slots.findByIdAndUpdate(item.slot_id, {
-      $set: {
-        reservation_time_portion: updatedReservationArray
-      }
-    }, { new: true });
+
+    if (existingSchedule) {
+      // Update the existing schedule
+      existingSchedule.practice_ideal_start_time = item.practice_ideal_start_time;
+      existingSchedule.practice_start_time = item.practice_start_time;
+      existingSchedule.practice_end_time = item.practice_end_time;
+      existingSchedule.practice_length = item.practice_length;
+      existingSchedule.portion_name = item.portion_name;
+      existingSchedule.coach_id = item.coach_id;
+      existingSchedule.field_id = item.field_id;
+      existingSchedule.$localsfield_portion = item.field_portion;
+
+      let savedSchedule = await existingSchedule.save();
+      console.log("<-------------------Schedule Updated---------------->");
+    } else {
+      // Create a new schedule
+      const scheduleEntry = new Schedule({
+        team_id: item.team_id,
+        club_id: item.club_id,
+        coach_id: item.coach_id,
+        field_id: item.field_id,
+        field_portion: item.field_portion,
+        schedule_date: item.schedule_date,
+        practice_ideal_start_time: item.practice_ideal_start_time,
+        practice_start_time: item.practice_start_time,
+        practice_end_time: item.practice_end_time,
+        practice_length: item.practice_length,
+        portion_name: item.portion_name
+      });
+
+      let savedSchedule = await scheduleEntry.save();
+      console.log("<-------------------Schedule Created---------------->");
+
+      let rsArray = item.slot.length > 0 ? item.slot : [];
+      let updatedReservationArray = await updateReservationArray(rsArray, item.practice_start_time, item.practice_end_time, item.field_portion);
+      let updateSlot = await Slots.findByIdAndUpdate(item.slot_id, {
+        $set: {
+          reservation_time_portion: updatedReservationArray
+        }
+      }, { new: true });
+      console.log("<-------------------Slot Updated---------------->");
+    }
   }
 }
 
+
 // Function to Schedule new practice session
-async function schedulePractice(team, portionNeeded, reservation, slot, slot_id, skipFlags) {
+async function schedulePractice(team, portionNeeded, reservation, slot, slot_id, skipFlags,schedulesToSave) {
   const teamPrefferdStartTime = await convertTimeToMinutes(team.practice_start_time)
   const teamPrefferdEndTime = await convertTimeToMinutes(team.practice_end_time)
   const reservationStartTime = await convertTimeToMinutes(reservation.reservation_start_time);
   const reservationEndTime = await convertTimeToMinutes(reservation.reservation_end_time);
   const remainingTime = team.practice_length;
+  const diff = team.practice_length - team.minimum_length
   const is_lights_available = reservation.field_id.is_light_available
   // Fetch all active coaches
   const coaches = await Coach.find({ club_id: team.club_id, is_active: true });
@@ -244,7 +318,8 @@ async function schedulePractice(team, portionNeeded, reservation, slot, slot_id,
   // Check if the team's preferred start and end times fall within the reservation start and end times
   let calculatedStartTime = (teamPrefferdStartTime >= reservationStartTime && teamPrefferdEndTime <= reservationEndTime) ? teamPrefferdStartTime : reservationStartTime;
   // Calculate practice start and end times in minutes
-  const practice_start_time = await convertMinutesToTime(calculatedStartTime);
+  const practice_ideal_start_time = await convertMinutesToTime(calculatedStartTime);
+  const practice_start_time = await convertMinutesToTime(calculatedStartTime + diff);
   const practice_end_time = await convertMinutesToTime(calculatedStartTime + remainingTime);
   // Find all schedules booked for the given reservation date and field
   const existingSchedules = await Schedule.find({
@@ -269,7 +344,7 @@ async function schedulePractice(team, portionNeeded, reservation, slot, slot_id,
       practice_end_time: practice_end_time,
       reservation_date: reservation.reservation_date
     }
-    const compatibleCoach = await findCompatibleCoach(team, coaches, rs, skipFlags);
+    const compatibleCoach = await findCompatibleCoach(team, coaches, rs, schedulesToSave);
     // const isEveningSchedule = await checkForEveningSchedules(is_lights_available, practice_start_time, skipFlags)
     // if (compatibleCoach && isEveningSchedule) {
     if (compatibleCoach) {
@@ -280,6 +355,7 @@ async function schedulePractice(team, portionNeeded, reservation, slot, slot_id,
         field_id: reservation.field_id._id,
         field_portion: portionNeeded,
         schedule_date: reservation.reservation_date,
+        practice_ideal_start_time: practice_ideal_start_time,
         practice_start_time: practice_start_time,
         practice_end_time: practice_end_time,
         practice_length: remainingTime,
@@ -370,18 +446,24 @@ async function checkTeamsPrefferedDay(reservationDay, team, skipFlags) {
 
 async function checkTeamTravelling(team, reservation) {
   if (team.is_travelling) {
-    // Check if any travelling date overlaps with the reservation date
+    // Convert reservation date to milliseconds once for comparison
+    const reservationStart = await convertDateToMilliseconds(reservation.reservation_date);
     for (const date of team.travelling_date) {
       const travellingStartDate = await convertDateToMilliseconds(date.travelling_start);
       const travellingEndDate = await convertDateToMilliseconds(date.travelling_end);
-      const reservationStart = await convertDateToMilliseconds(reservation.reservation_date);
+      // Check if the reservation date overlaps with any travelling date
       if (reservationStart >= travellingStartDate && reservationStart <= travellingEndDate) {
-        return false; // Return false if the reservation date overlaps with any travelling date
+        return true; // Return true if there is an overlap
       }
     }
+    // If no overlap was found
+    return false;
+  } else {
+    // Return false if the team is not travelling
+    return false;
   }
-  return true; // Return true if there are no overlaps
 }
+
 
 async function checkTeamPrefferedTime(reservation, team, skipFlags) {
   if (!skipFlags.skipTimingCheck) {
@@ -389,44 +471,96 @@ async function checkTeamPrefferedTime(reservation, team, skipFlags) {
     const reservationStartTime = await convertTimeToMinutes(reservation.reservation_start_time);
     const reservationEndTime = await convertTimeToMinutes(reservation.reservation_end_time);
     const preferredStartHour1 = await convertTimeToMinutes(team.practice_start_time);
-    const adjustedPreferredEndTime = preferredStartHour1 + team.practice_length;
-    return (reservationStartTime <= preferredStartHour1 && adjustedPreferredEndTime <= reservationEndTime) || (preferredStartHour1 >= reservationStartTime && adjustedPreferredEndTime <= reservationEndTime) ||
-      (preferredStartHour1 <= reservationEndTime && adjustedPreferredEndTime <= reservationEndTime);
+    const adjustedPreferredEndTime = preferredStartHour1 + team.minimum_length;
+    return preferredStartHour1 <= reservationEndTime && adjustedPreferredEndTime <= reservationEndTime;
   } else {
     return true;
   }
 }
 
+// // Function to find Compatible coach of team
+// async function findCompatibleCoach(team, coaches, reservation, skipFlags) {
+//   const coach = coaches.find(coach => {
+//     if (coach._id.equals(team.coach_id)) {
+//       return coach;
+//     }
+//   });
+//   if (coach) {
+//     if (skipFlags && skipFlags.skipCoach) {
+//       return coach
+//     } else {
+
+//       const isCompatible = await checkCoachAvailability(coach, reservation, team, skipFlags);
+//       if (isCompatible) {
+//         return coach;
+//       } else {
+//         return null;
+//       }
+//     }
+//   } else {
+//     return null;
+//   }
+// }
+
+// // Function to check coach's availability for the new reservation
+// async function checkCoachAvailability(coach, reservation, team, skipFlags) {
+//   const coachStartTime = await convertTimeToMinutes(coach.coaching_start_time);
+//   const coachEndTime = await convertTimeToMinutes(coach.coaching_end_time);
+//   const reservationStartTime = await convertTimeToMinutes(reservation.practice_start_time);
+//   const reservationEndTime = await convertTimeToMinutes(reservation.practice_end_time);
+
+//   // Fetch all schedules for other teams coached by the same coach on the reservation date
+//   const otherTeamSchedules = await Schedule.find({
+//     coach_id: coach._id,
+//     schedule_date: reservation.reservation_date,
+//     team_id: { $ne: team._id } // Exclude the current team's schedule
+//   });
+//   // Check if the reservation overlaps with any other team's practice time
+//   for (const schedule of otherTeamSchedules) {
+
+//     const scheduleStartTime = await convertTimeToMinutes(schedule.practice_start_time);
+//     const scheduleEndTime = await convertTimeToMinutes(schedule.practice_end_time);
+//     if (skipFlags && skipFlags.skipCoachOverlap) {
+//       return true
+//     } else if (
+//       (reservationStartTime >= scheduleStartTime && reservationStartTime < scheduleEndTime) ||
+//       (reservationEndTime > scheduleStartTime && reservationEndTime <= scheduleEndTime) ||
+//       (scheduleStartTime >= reservationStartTime && scheduleEndTime <= reservationEndTime)
+//     ) {
+//       // If overlap found, return false
+//       return false;
+//     }
+//   }
+//   // Check if the coach's available time overlaps with the reservation time
+//   if (coachStartTime <= reservationStartTime && coachEndTime >= reservationEndTime) {
+//     // If no overlap found, return true
+//     return true;
+//   } else {
+//     return false;
+//   }
+// }
+
 // Function to find Compatible coach of team
-async function findCompatibleCoach(team, coaches, reservation, skipFlags) {
-  const coach = coaches.find(coach => {
-    if (coach._id.equals(team.coach_id)) {
+async function findCompatibleCoach(team, coaches, reservation,schedulesToSave) {
+  const coach = coaches.find(coach => coach._id.equals(team.coach_id));
+  if (coach) {
+    const isCompatible = await checkCoachAvailability(coach, reservation, team,schedulesToSave);
+    if (isCompatible) {
       return coach;
     }
-  });
-  if (coach) {
-    if (skipFlags && skipFlags.skipCoach) {
-      return coach
-    } else {
-
-      const isCompatible = await checkCoachAvailability(coach, reservation, team, skipFlags);
-      if (isCompatible) {
-        return coach;
-      } else {
-        return null;
-      }
-    }
-  } else {
-    return null;
   }
+  return null;
 }
 
 // Function to check coach's availability for the new reservation
-async function checkCoachAvailability(coach, reservation, team, skipFlags) {
+async function checkCoachAvailability(coach, reservation, team,schedulesToSave) {
   const coachStartTime = await convertTimeToMinutes(coach.coaching_start_time);
   const coachEndTime = await convertTimeToMinutes(coach.coaching_end_time);
   const reservationStartTime = await convertTimeToMinutes(reservation.practice_start_time);
   const reservationEndTime = await convertTimeToMinutes(reservation.practice_end_time);
+
+  // Calculate practice length in minutes
+  const reservationLength = reservationEndTime - reservationStartTime;
 
   // Fetch all schedules for other teams coached by the same coach on the reservation date
   const otherTeamSchedules = await Schedule.find({
@@ -434,22 +568,46 @@ async function checkCoachAvailability(coach, reservation, team, skipFlags) {
     schedule_date: reservation.reservation_date,
     team_id: { $ne: team._id } // Exclude the current team's schedule
   });
+  let allSchedules = [...otherTeamSchedules, ...schedulesToSave]
   // Check if the reservation overlaps with any other team's practice time
-  for (const schedule of otherTeamSchedules) {
-
+  for (const schedule of allSchedules) {
     const scheduleStartTime = await convertTimeToMinutes(schedule.practice_start_time);
     const scheduleEndTime = await convertTimeToMinutes(schedule.practice_end_time);
-    if (skipFlags && skipFlags.skipCoachOverlap) {
-      return true
-    } else if (
-      (reservationStartTime >= scheduleStartTime && reservationStartTime < scheduleEndTime) ||
-      (reservationEndTime > scheduleStartTime && reservationEndTime <= scheduleEndTime) ||
-      (scheduleStartTime >= reservationStartTime && scheduleEndTime <= reservationEndTime)
-    ) {
+
+    const reservationStartsDuringSchedule = reservationStartTime >= scheduleStartTime && reservationStartTime < scheduleEndTime;
+    const reservationEndsDuringSchedule = reservationEndTime > scheduleStartTime && reservationEndTime <= scheduleEndTime;
+    const scheduleEncompassedByReservation = scheduleStartTime >= reservationStartTime && scheduleEndTime <= reservationEndTime;
+
+    if (reservationStartsDuringSchedule || reservationEndsDuringSchedule || scheduleEncompassedByReservation) {
       // If overlap found, return false
       return false;
     }
+
+    // New condition: Check field_id and time difference
+    if (reservation.field_id != schedule.field_id) {
+      return false
+    }else if(reservation.field_id == schedule.field_id){
+       // Calculate schedule length in minutes
+      const scheduleLength = scheduleEndTime - scheduleStartTime;
+
+      // Check if reservation can start right after the current schedule ends
+      if (reservationStartTime === scheduleEndTime) {
+        return true;
+      }
+      // Check if reservation can end right before the current schedule starts
+      if (reservationEndTime === scheduleStartTime) {
+        return true;
+      }
+      // Check if the reservation's length is less than or equal to the schedule's length and they overlap
+      if (
+        (reservationEndTime >= scheduleStartTime && reservationStartTime <= scheduleEndTime) &&
+        (reservationLength <= scheduleLength)
+      ) {
+        return true;
+      }
+    }
   }
+
   // Check if the coach's available time overlaps with the reservation time
   if (coachStartTime <= reservationStartTime && coachEndTime >= reservationEndTime) {
     // If no overlap found, return true
@@ -458,6 +616,8 @@ async function checkCoachAvailability(coach, reservation, team, skipFlags) {
     return false;
   }
 }
+
+
 
 async function checkSlotAvailability(reservation, practice_start_time, practice_end_time, skipFlags) {
   if (skipFlags?.skipSlotAvailability) {

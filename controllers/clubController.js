@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const { generateToken } = require("../middlewares/authMiddleware");
 const { resetPasswordMail2 } = require("../helper/insertQuery")
 const jwt = require('jsonwebtoken');
+
 exports.createClub = async (req, res) => {
   const {
     club_name,

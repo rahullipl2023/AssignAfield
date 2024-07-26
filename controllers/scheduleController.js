@@ -229,12 +229,163 @@ exports.getSchedulesByClubId = async (req, res) => {
 };
 
 // Get Schedules By Team Id OR Coach Id with Search, Sort, Pagination, and Response Metadata
+// exports.getSchedulesByTeamOrCoach = async (req, res) => {
+//   try {
+//     const club_id = req.params.clubId;
+//     const { team_id, coach_id, search, sort_by, page, pageSize } = req.query;
+
+//     let IsSchedules = await IsSchedulesCreating.findOne({ club_id: club_id })
+//     if (IsSchedules && IsSchedules.is_schedules_creating) {
+//       return res.status(200).json({
+//         success: true,
+//         message: "Schedules are being created. Please wait until the process is completed.",
+//         schedules: [],
+//         metadata: {
+//           totalCount: 0,
+//           currentPage: 1,
+//           totalPages: 0,
+//         },
+//       });
+//     }
+
+
+//     let query = {
+//       club_id: new ObjectId(club_id),
+//       $or: [],
+//     };
+
+//     if (team_id && ObjectId.isValid(team_id)) {
+//       query.$or.push({ team_id: new ObjectId(team_id) });
+//     }
+
+//     if (coach_id && ObjectId.isValid(coach_id)) {
+//       query.$or.push({ coach_id: new ObjectId(coach_id) });
+//     }
+
+//     // Ensure that $or array is not empty
+//     if (query.$or.length === 0) {
+//       delete query.$or;
+//     }
+
+//     // Construct sort option
+//     const sortOption = {};
+//     switch (sort_by) {
+//       case '1':
+//         sortOption.team_name = 1;
+//         break;
+//       case '2':
+//         sortOption.team_name = -1;
+//         break;
+//       case '3':
+//         sortOption.practice_start_time = 1;
+//         break;
+//       case '4':
+//         sortOption.practice_start_time = -1;
+//         break;
+//       case '5':
+//         sortOption.schedule_date = 1;
+//         break;
+//       case '6':
+//         sortOption.schedule_date = -1;
+//         break;
+//       default:
+//         // Handle default sorting here if needed
+//         sortOption.schedule_date = 1;
+//         break;
+//     }
+
+//     const currentPage = parseInt(page) || 1;
+//     const pageSizeValue = parseInt(pageSize) || 10;
+
+//     const skip = (currentPage - 1) * pageSizeValue;
+
+//     // Construct aggregation pipeline
+//     const aggregationPipeline = [
+//       { $match: query },
+//       { $lookup: { from: 'teams', localField: 'team_id', foreignField: '_id', as: 'team_id' } },
+//       { $lookup: { from: 'coaches', localField: 'coach_id', foreignField: '_id', as: 'coach_id' } },
+//       { $lookup: { from: 'fields', localField: 'field_id', foreignField: '_id', as: 'field_id' } },
+//       // Unwind arrays
+//       { $unwind: '$team_id' },
+//       { $unwind: '$coach_id' },
+//       { $unwind: '$field_id' },
+//       // Project fields
+//       {
+//         $project: {
+//           team_name: { $ifNull: ['$team_id.team_name', ''] },
+//           club_id: { $ifNull: ['$club_id', ''] },
+//           field_portion: { $ifNull: ['$field_portion', ''] },
+//           schedule_day: { $ifNull: ['$schedule_day', ''] },
+//           schedule_date: { $ifNull: ['$schedule_date', ''] },
+//           practice_ideal_start_time: { $ifNull: ['$practice_ideal_start_time', ''] },
+//           practice_start_time: { $ifNull: ['$practice_start_time', ''] },
+//           practice_end_time: { $ifNull: ['$practice_end_time', ''] },
+//           practice_length: { $ifNull: ['practice_length', 0] },
+//           portion_name: { $ifNull: ['$portion_name', 0] },
+//           contact_number: { $ifNull: ['$contact_number', ''] },
+//           permit: { $ifNull: ['$permit', ''] },
+//           is_active: { $ifNull: ['$is_active', 1] },
+//           created_at: { $ifNull: ['$created_at', ''] },
+//           field_id: '$field_id',
+//           team_id: '$team_id',
+//           coach_id: '$coach_id',
+//         }
+//       },
+//     ];
+
+
+//     // Add $unwind stages conditionally based on the presence of coach_id and team_id
+//     if (!coach_id) {
+//       aggregationPipeline.push({ $unwind: '$coach_id' });
+//     }
+//     if (!team_id) {
+//       aggregationPipeline.push({ $unwind: '$team_id' });
+//     }
+
+//     // Add remaining stages
+//     aggregationPipeline.push(
+//       { $sort: sortOption },
+//       { $skip: skip },
+//       { $limit: pageSizeValue }
+//     );
+
+//     // Execute aggregation
+//     const schedules = await Schedule.aggregate(aggregationPipeline);
+
+//     // If sort_by is '5' (sorting by date), sort the schedules array
+//     if (sort_by == '5' || sort_by == '6') {
+//       schedules.sort((a, b) => {
+//         const dateA = new Date(a.schedule_date);
+//         const dateB = new Date(b.schedule_date);
+//         return (sort_by == '5') ? dateA - dateB : dateB - dateA;
+//       });
+//     }
+
+//     const totalCount = await Schedule.countDocuments(query);
+//     const totalPages = Math.ceil(totalCount / pageSizeValue);
+//     let message = (schedules.length > 0) ? "Schedules retrieved successfully" : "No Schedule Available";
+
+//     return res.status(200).json({
+//       success: true,
+//       message: message,
+//       schedules: schedules,
+//       metadata: {
+//         totalCount: totalCount,
+//         currentPage: currentPage,
+//         totalPages: totalPages,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error getting schedules by team or coach:", error);
+//     return res.status(500).json({ success: false, message: error });
+//   }
+// };
 exports.getSchedulesByTeamOrCoach = async (req, res) => {
   try {
     const club_id = req.params.clubId;
     const { team_id, coach_id, search, sort_by, page, pageSize } = req.query;
 
-    let IsSchedules = await IsSchedulesCreating.findOne({ club_id: club_id })
+    let IsSchedules = await IsSchedulesCreating.findOne({ club_id: club_id });
     if (IsSchedules && IsSchedules.is_schedules_creating) {
       return res.status(200).json({
         success: true,
@@ -247,7 +398,6 @@ exports.getSchedulesByTeamOrCoach = async (req, res) => {
         },
       });
     }
-
 
     let query = {
       club_id: new ObjectId(club_id),
@@ -283,14 +433,13 @@ exports.getSchedulesByTeamOrCoach = async (req, res) => {
         sortOption.practice_start_time = -1;
         break;
       case '5':
-        sortOption.schedule_date = 1;
+        sortOption.schedule_date_iso = 1;
         break;
       case '6':
-        sortOption.schedule_date = -1;
+        sortOption.schedule_date_iso = -1;
         break;
       default:
-        // Handle default sorting here if needed
-        sortOption.schedule_date = 1;
+        sortOption.schedule_date_iso = 1;
         break;
     }
 
@@ -309,6 +458,17 @@ exports.getSchedulesByTeamOrCoach = async (req, res) => {
       { $unwind: '$team_id' },
       { $unwind: '$coach_id' },
       { $unwind: '$field_id' },
+      // Add project stage to convert schedule_date to ISODate
+      {
+        $addFields: {
+          schedule_date_iso: {
+            $dateFromString: {
+              dateString: '$schedule_date',
+              format: '%m/%d/%Y',
+            },
+          },
+        },
+      },
       // Project fields
       {
         $project: {
@@ -317,9 +477,11 @@ exports.getSchedulesByTeamOrCoach = async (req, res) => {
           field_portion: { $ifNull: ['$field_portion', ''] },
           schedule_day: { $ifNull: ['$schedule_day', ''] },
           schedule_date: { $ifNull: ['$schedule_date', ''] },
+          schedule_date_iso: 1,
+          practice_ideal_start_time: { $ifNull: ['$practice_ideal_start_time', ''] },
           practice_start_time: { $ifNull: ['$practice_start_time', ''] },
           practice_end_time: { $ifNull: ['$practice_end_time', ''] },
-          practice_length: { $ifNull: ['practice_length', 0] },
+          practice_length: { $ifNull: ['$practice_length', 0] },
           portion_name: { $ifNull: ['$portion_name', 0] },
           contact_number: { $ifNull: ['$contact_number', ''] },
           permit: { $ifNull: ['$permit', ''] },
@@ -328,10 +490,12 @@ exports.getSchedulesByTeamOrCoach = async (req, res) => {
           field_id: '$field_id',
           team_id: '$team_id',
           coach_id: '$coach_id',
-        }
+        },
       },
+      { $sort: sortOption },
+      { $skip: skip },
+      { $limit: pageSizeValue }
     ];
-
 
     // Add $unwind stages conditionally based on the presence of coach_id and team_id
     if (!coach_id) {
@@ -341,24 +505,8 @@ exports.getSchedulesByTeamOrCoach = async (req, res) => {
       aggregationPipeline.push({ $unwind: '$team_id' });
     }
 
-    // Add remaining stages
-    aggregationPipeline.push(
-      { $sort: sortOption },
-      { $skip: skip },
-      { $limit: pageSizeValue }
-    );
-
     // Execute aggregation
     const schedules = await Schedule.aggregate(aggregationPipeline);
-
-    // If sort_by is '5' (sorting by date), sort the schedules array
-    if (sort_by == '5' || sort_by == '6') {
-      schedules.sort((a, b) => {
-        const dateA = new Date(a.schedule_date);
-        const dateB = new Date(b.schedule_date);
-        return (sort_by == '5') ? dateA - dateB : dateB - dateA;
-      });
-    }
 
     const totalCount = await Schedule.countDocuments(query);
     const totalPages = Math.ceil(totalCount / pageSizeValue);
@@ -379,6 +527,8 @@ exports.getSchedulesByTeamOrCoach = async (req, res) => {
     return res.status(500).json({ success: false, message: error });
   }
 };
+
+
 
 // View Schedule By ID
 exports.viewScheduleById = async (req, res) => {

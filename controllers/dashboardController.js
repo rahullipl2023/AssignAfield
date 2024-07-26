@@ -1,4 +1,6 @@
-const { Coach, Team, Field, Club, User, Schedule } = require("../models/schema");
+const { Coach, Team, Field, Club, User, Schedule, IsSchedulesCreating } = require("../models/schema");
+const mongoose = require('mongoose');
+const ObjectId = mongoose.Types.ObjectId;
 
 exports.dashboardDetailsByClubId = async (req, res) => {
   try {
@@ -8,8 +10,8 @@ exports.dashboardDetailsByClubId = async (req, res) => {
     // Fetch club details and user details
     const clubDetails = await Club.findOne({ _id: clubId });
 
-    if(clubDetails && clubDetails.club_profile == "null"){
-      clubDetails.club_profile = null
+    if (clubDetails && clubDetails.club_profile == "null") {
+      clubDetails.club_profile = null;
     }
     const userDetails = await User.findOne({ _id: userId });
 
@@ -32,45 +34,55 @@ exports.dashboardDetailsByClubId = async (req, res) => {
       deleted_at: { $in: [null, undefined, ''] }
     });
 
-    let schedules = await Schedule.find({ club_id: clubId })
-      .sort({ schedule_date: 1 }) // Sort in descending order based on creation time
-      .limit(5) // Limit the result to the latest 5 schedules
-      .populate("team_id") // Assuming 'team_name' is the field to be populated from the Team model
-      .populate("field_id") // Assuming 'field_name' is the field to be populated from the Field model
-      .populate("coach_id"); // Assuming 'first_name' and 'last_name' are the fields to be populated from the Coach model
-    
-    // Map through each schedule and modify the portion_name field
-    const modifiedSchedules = schedules.map(schedule => {
-      switch (schedule.portion_name) {
-        case "A":
-          schedule.portion_name = 1;
-          break;
-        case "B":
-          schedule.portion_name = 2;
-          break;
-        case "C":
-          schedule.portion_name = 3;
-          break;
-        case "D":
-          schedule.portion_name = 4;
-          break;
-        case "E":
-          schedule.portion_name = 5;
-          break;
-        case "F":
-          schedule.portion_name = 6;
-          break;
-        case "G":
-          schedule.portion_name = 7;
-          break;
-        case "H":
-          schedule.portion_name = 8;
-          break;
-        // Add more cases for other letters as needed
-        default:
-          schedule.portion_name = 0
-      }
-      schedule.portion_name = Number(schedule.portion_name)
+    let IsSchedules = await IsSchedulesCreating.findOne({ club_id: clubId });
+
+    // Fetch schedules with upcoming dates
+    let schedules = await Schedule.aggregate([
+      {
+        $addFields: {
+          schedule_date_iso: {
+            $dateFromString: {
+              dateString: '$schedule_date',
+              format: '%m/%d/%Y',
+            },
+          },
+        },
+      },
+      {
+        $match: {
+          club_id: new ObjectId(clubId),
+          schedule_date_iso: { $gte: new Date() } // Filter for upcoming dates
+        }
+      },
+      { $sort: { schedule_date_iso: 1 } },
+      { $limit: 5 },
+    ])
+      .lookup({
+        from: 'teams',
+        localField: 'team_id',
+        foreignField: '_id',
+        as: 'team_id',
+      })
+      .lookup({
+        from: 'fields',
+        localField: 'field_id',
+        foreignField: '_id',
+        as: 'field_id',
+      })
+      .lookup({
+        from: 'coaches',
+        localField: 'coach_id',
+        foreignField: '_id',
+        as: 'coach_id',
+      })
+      .unwind('$team_id')
+      .unwind('$field_id')
+      .unwind('$coach_id');
+
+    schedules = schedules.map(schedule => {
+      schedule.team_name = schedule.team_id.team_name;
+      schedule.field_name = schedule.field_id.field_name;
+      schedule.coach_name = `${schedule.coach_id.first_name} ${schedule.coach_id.last_name}`;
       return schedule;
     });
 
@@ -78,7 +90,7 @@ exports.dashboardDetailsByClubId = async (req, res) => {
     const combinedDetails = {
       club: clubDetails || {},
       user: userDetails || {},
-      schedules : modifiedSchedules || [],
+      schedules: (IsSchedules && IsSchedules.is_schedules_creating) ? [] : schedules,
       counts: {
         coach: activeCoachesCount || 0,
         team: activeTeamsCount || 0,
@@ -95,8 +107,8 @@ exports.dashboardDetailsByClubId = async (req, res) => {
   } catch (error) {
     console.error("Error fetching Dashboard Details:", error);
     // Log detailed error information or provide specific error messages
-    return res
-      .status(500)
-      .json({ auccess: false, error: "Internal Server Error" });
+    return res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
+
+
