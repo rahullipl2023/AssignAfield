@@ -1,5 +1,5 @@
 // Import necessary modules and models
-const { Field, Reservation, Slots, Schedule, IsSchedulesCreating  } = require("../models/schema");
+const { Field, Reservation, Slots, Schedule, IsSchedulesCreating } = require("../models/schema");
 const eventEmitter = require('./events');
 const ObjectId = require('mongoose').Types.ObjectId;
 const { formatDate } = require('../helper/insertQuery')
@@ -243,7 +243,7 @@ exports.exportReservations = async (req, res) => {
 
     // Construct query to find reservations within the date range
     const query = {
-      club_id : clubId,
+      club_id: clubId,
       reservation_date: {
         $gte: startDate,
         $lte: endDate
@@ -252,13 +252,13 @@ exports.exportReservations = async (req, res) => {
     // Retrieve reservations within the date range
     const reservations = await Reservation.find(query)
       .populate("field_id")
-    if(reservations.length > 0){
+    if (reservations.length > 0) {
       return res.status(200).json({
         success: true,
         message: "Reservations within the date range retrieved successfully",
         reservations: reservations
       });
-    }else{
+    } else {
       return res.status(200).json({
         success: false,
         message: "No reservations found within the date range",
@@ -272,6 +272,7 @@ exports.exportReservations = async (req, res) => {
 };
 
 exports.importReservation = async (req, res) => {
+  console.log("--------------------")
   try {
     const club_id = req.params.clubId; // Obtaining club_id from query params
     const { reservation_data } = req.body;
@@ -312,7 +313,7 @@ exports.importReservation = async (req, res) => {
           reservation_end_time: data.reservation_end_time,
         });
 
-        if(!reservationExits){
+        if (!reservationExits) {
           // Use the IDs of the created or existing field to create the reservation
           const reservation = await Reservation.create({
             club_id: data.club_id,
@@ -324,8 +325,7 @@ exports.importReservation = async (req, res) => {
             permit: data.permit,
           });
           createReservation.push(reservation);
-        }else{
-          console.log("Already exists")
+        } else {
           reservationExistsArr.push(reservationExits);
         }
       } catch (error) {
@@ -338,74 +338,73 @@ exports.importReservation = async (req, res) => {
     const newReservation = [...createReservation, ...reservationExistsArr];
     const reservationDates = newReservation.map(reservation => reservation.reservation_date);
     const deletionResult = await deleteSlotsAndSchedules(club_id, reservationDates);
-
     if (deletionResult) {
-        res.status(200).json({
-            success: true,
-            message: "Reservations imported successfully",
-            reservations: createReservation.filter(reservation => reservation !== null),
-            reservationsWithError
-        });
+      res.status(200).json({
+        success: true,
+        message: "Reservations imported successfully",
+        reservations: createReservation.filter(reservation => reservation !== null),
+        reservationsWithError
+      });
 
-        console.log('generateSchedules triggered after reservation import');
+      console.log('generateSchedules triggered after reservation import');
 
-        let findScheduleCreating = await IsSchedulesCreating.findOne({ club_id: club_id });
-        
-        if (!findScheduleCreating) {
-          await IsSchedulesCreating.create({ club_id: club_id, is_schedules_creating: true });
-        } else {
-          await IsSchedulesCreating.findOneAndUpdate(
-            { club_id: club_id },
-            { $set: { is_schedules_creating: true } }
-          );
-        }
-        await generateSchedules(club_id, newReservation);
+      let findScheduleCreating = await IsSchedulesCreating.findOne({ club_id: club_id });
+
+      if (!findScheduleCreating) {
+        await IsSchedulesCreating.create({ club_id: club_id, is_schedules_creating: true });
+      } else {
         await IsSchedulesCreating.findOneAndUpdate(
           { club_id: club_id },
-          { $set: { is_schedules_creating: false } }
+          { $set: { is_schedules_creating: true } }
         );
+      }
+      await generateSchedules(club_id, newReservation);
+      await IsSchedulesCreating.findOneAndUpdate(
+        { club_id: club_id },
+        { $set: { is_schedules_creating: false } }
+      );
     } else {
-        return res.status(500).json({
-            success: false,
-            message: "Error overriding slots and schedules"
-        });
+      return res.status(500).json({
+        success: false,
+        message: "Error overriding slots and schedules"
+      });
     }
   } catch (error) {
     console.error("Error importing Reservations:", error);
-    return res.status(500).json({ success: false, error: "Server Error" });
+    return res.status(500).json({ success: false, error: `Server Error :- ${error}` });
   }
 };
 
 // Function to delete slots and schedules based on the newReservation array
 async function deleteSlotsAndSchedules(club_id, reservationDates) {
-    try {
-        const clubObjectId = new ObjectId(club_id);
+  try {
+    const clubObjectId = new ObjectId(club_id);
 
-        // Delete slots
-        const slotDeleteResult = await Slots.deleteMany({
-            club_id: clubObjectId,
-            reservation_date: { $in: reservationDates }
-        });
-        console.log('Slots deleted:', slotDeleteResult.deletedCount);
+    // Delete slots
+    const slotDeleteResult = await Slots.deleteMany({
+      club_id: clubObjectId,
+      reservation_date: { $in: reservationDates }
+    });
+    console.log('Slots deleted:', slotDeleteResult.deletedCount);
 
-        // Delete schedules
-        const scheduleDeleteResult = await Schedule.deleteMany({
-            club_id: clubObjectId,
-            schedule_date: { $in: reservationDates }
-        });
-        console.log('Schedules deleted:', scheduleDeleteResult.deletedCount);
+    // Delete schedules
+    const scheduleDeleteResult = await Schedule.deleteMany({
+      club_id: clubObjectId,
+      schedule_date: { $in: reservationDates }
+    });
+    console.log('Schedules deleted:', scheduleDeleteResult.deletedCount);
 
-        return true; // Ensure the function resolves with true
-    } catch (error) {
-        console.error('Error deleting slots and schedules:', error);
-        return false; // Ensure the function resolves with false in case of error
-    }
+    return true; // Ensure the function resolves with true
+  } catch (error) {
+    console.error('Error deleting slots and schedules:', error);
+    return false; // Ensure the function resolves with false in case of error
+  }
 }
 
 async function processReservation(club_id, newReservation) {
-    // Emit an event after sending the response
-    console.log("creating schedules after deletion");
-    eventEmitter.emit('reservationImported', club_id, newReservation);
+  // Emit an event after sending the response
+  console.log("creating schedules after deletion");
+  eventEmitter.emit('reservationImported', club_id, newReservation);
 }
 
 

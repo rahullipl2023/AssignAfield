@@ -30,17 +30,17 @@ exports.createField = async (req, res) => {
     });
 
     if (!createField) {
-      return res.status(400).json({ success : false, message: "Error creating the field" });
+      return res.status(400).json({ success: false, message: "Error creating the field" });
     } else {
       return res.status(201).json({
-        success : true,
+        success: true,
         message: `Successfully created ${field_name}`,
         field: createField,
       });
     }
   } catch (error) {
     console.log("Error in create field:", error);
-    return res.status(500).json({ success : false, message: "Server Error" });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -82,11 +82,11 @@ exports.updateField = async (req, res) => {
     );
 
     if (!updatedField) {
-      return res.status(404).json({ success : false, message: "Field not found" });
+      return res.status(404).json({ success: false, message: "Field not found" });
     }
 
     return res.status(200).json({
-      success : true,
+      success: true,
       message: `Successfully updated ${field_name}`,
       field: updatedField,
     });
@@ -112,17 +112,17 @@ exports.softDeleteField = async (req, res) => {
     );
 
     if (!softDeletedField) {
-      return res.status(404).json({ success : false, msg: "Field not found" });
+      return res.status(404).json({ success: false, msg: "Field not found" });
     }
 
     return res.status(200).json({
-      success : true,
+      success: true,
       message: `Successfully deleted ${softDeletedField.field_name}`,
       field: softDeletedField,
     });
   } catch (error) {
     console.error("Error deleting field:", error);
-    return res.status(500).json({ success : false, message: "Server Error" });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -210,7 +210,7 @@ exports.getFieldsList = async (req, res) => {
   try {
     const clubId = req.params.clubId;
 
-    const fields = await Field.find({club_id: clubId})
+    const fields = await Field.find({ club_id: clubId })
 
     if (!fields || fields.length === 0) {
       return res.status(404).json({ success: false, message: "No active fields found " });
@@ -234,9 +234,10 @@ exports.viewFieldById = async (req, res) => {
     const field = await Field.findById(fieldId);
 
     if (!field) {
-      return res.status(404).json({ 
-        success : false,
-        message: "Field not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Field not found"
+      });
     }
 
     return res.status(200).json({
@@ -259,7 +260,7 @@ exports.importFields = async (req, res) => {
     // Arrays to store created fields and fields with errors
     let createdFields = [];
     let fieldsWithErrors = [];
-    if(field_data.length > 0){
+    if (field_data.length > 0) {
       // Loop over field data sequentially
       for (const fieldData of field_data) {
         // Check for required keys and validate field data
@@ -272,19 +273,25 @@ exports.importFields = async (req, res) => {
           continue; // Continue to the next iteration
         }
 
+        if (fieldData.teams_per_field < 1 || fieldData.teams_per_field > 8) {
+          fieldData.error = `Number of teams per field should not be less than 1 or greater than 8`;
+          fieldsWithErrors.push(fieldData);
+          continue; // Continue to the next iteration
+        }
+
         // Check if region is blank, set it to 'all' if blank
         if (!fieldData.region) {
           fieldData.region = 'all';
         }
         // If region is provided, find or create it in Regions collection
         const regionLower = fieldData.region.toLowerCase();
-        let regionDoc = await Regions.findOne({ 
-                                  region: { $regex: new RegExp('^' + regionLower + '$', 'i') }, 
-                                  club_id: club_id 
-                              });
+        let regionDoc = await Regions.findOne({
+          region: { $regex: new RegExp('^' + regionLower + '$', 'i') },
+          club_id: club_id
+        });
         if (!regionDoc) {
           // If region does not exist, create a new region
-          regionDoc = await Regions.create({ region: fieldData.region, club_id : club_id });
+          regionDoc = await Regions.create({ region: fieldData.region, club_id: club_id });
         }
 
         // Assign club_id to field data
@@ -316,8 +323,8 @@ exports.importFields = async (req, res) => {
         fields: createdFields,
         fieldsWithErrors: fieldsWithErrors
       });
-    }else{
-        return res.status(201).json({
+    } else {
+      return res.status(201).json({
         success: false,
         message: "Empty field data",
         fields: [],
@@ -332,7 +339,6 @@ exports.importFields = async (req, res) => {
 };
 
 
-// Function to validate field data
 const validateFieldData = async (fieldData) => {
   const requiredKeys = ['field_name', 'teams_per_field'];
   return requiredKeys.filter(key => {
@@ -344,6 +350,7 @@ const validateFieldData = async (fieldData) => {
     }
   });
 };
+
 
 
 exports.activateOrDeactivateField = async (req, res) => {
@@ -364,11 +371,11 @@ exports.activateOrDeactivateField = async (req, res) => {
     );
 
     if (!updatedfield) {
-      return res.status(404).json({ success : false, message: 'field not found' });
+      return res.status(404).json({ success: false, message: 'field not found' });
     }
 
     let status = is_active == true ? 'activated' : 'deactivated'
-    return res.status(200).json({ success : true, message: `Field ${status} successfully`, field: updatedfield });
+    return res.status(200).json({ success: true, message: `Field ${status} successfully`, field: updatedfield });
   } catch (error) {
     console.error('Error in activate/deactivate field:', error);
     return res.status(500).json({ success: false, message: 'Server Error' });
