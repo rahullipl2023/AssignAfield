@@ -263,6 +263,7 @@ exports.importFields = async (req, res) => {
     if (field_data.length > 0) {
       // Loop over field data sequentially
       for (const fieldData of field_data) {
+        console.log(fieldData,"fieldData")
         // Check for required keys and validate field data
         const missingKeys = await validateFieldData(fieldData);
 
@@ -273,11 +274,12 @@ exports.importFields = async (req, res) => {
           continue; // Continue to the next iteration
         }
 
-        if (fieldData.teams_per_field < 1 || fieldData.teams_per_field > 8) {
-          fieldData.error = `Number of teams per field should not be less than 1 or greater than 8`;
-          fieldsWithErrors.push(fieldData);
-          continue; // Continue to the next iteration
+        if (!fieldData.teams_per_field || fieldData.teams_per_field < 1 || fieldData.teams_per_field > 8) {
+            fieldData.error = `Number of teams per field should not be less than 1 or greater than 8`;
+            fieldsWithErrors.push(fieldData);
+            continue; // Continue to the next iteration
         }
+
 
         // Check if region is blank, set it to 'all' if blank
         if (!fieldData.region) {

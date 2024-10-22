@@ -198,13 +198,14 @@ exports.getTeamsByClubId = async (req, res) => {
   try {
     const clubId = req.params.club_id;
     let { search, sort, page } = req.query;
-    search = search.trim()
+    search = search.trim();
+
     // Pagination settings
     const pageSize = 10; // Number of items per page
     const currentPage = parseInt(page) || 1; // Current page, default is 1
 
     let query = {
-      club_id: clubId,
+      club_id: new ObjectId(clubId),
       deleted_at: { $in: [null, undefined] },
     };
 
@@ -216,18 +217,8 @@ exports.getTeamsByClubId = async (req, res) => {
           { team_name: { $regex: new RegExp(search, 'i') } },
           { age_group: { $regex: new RegExp(search, 'i') } },
           { gender: { $regex: new RegExp(search, 'i') } },
+          { coach_name: { $regex: new RegExp(search, 'i') } },
           // Add other fields for search as needed
-          // Search by coach's name (first name or last name)
-          {
-            "coach_id": {
-              $in: await Coach.find({
-                $or: [
-                  { first_name: { $regex: new RegExp(search, 'i') } },
-                  { last_name: { $regex: new RegExp(search, 'i') } }
-                ]
-              }).distinct('_id')
-            }
-          }
         ],
       };
     }
@@ -253,6 +244,10 @@ exports.getTeamsByClubId = async (req, res) => {
       case 6:
         sortOption = { created_at: -1 }; // Date (latest first)
         break;
+      case 7:
+        // Sorting by coach name (first_name, then last_name)
+        sortOption = { coach_name: 1 };
+        break;
       default:
         // Default sorting, you can change this to your needs
         sortOption = { team_name: 1 };
@@ -262,16 +257,68 @@ exports.getTeamsByClubId = async (req, res) => {
     const totalTeams = await Team.countDocuments(query);
     const totalPages = Math.ceil(totalTeams / pageSize);
 
-    const teams = await Team.find(query)
-      .populate("coach_id")
-      .sort(sortOption)
-      .skip((currentPage - 1) * pageSize)
-      .limit(pageSize);
+    const teams = await Team.aggregate([
+      {
+        $lookup: {
+          from: "coaches",
+          localField: "coach_id",
+          foreignField: "_id",
+          as: "coachInfo",
+        },
+      },
+      {
+        $unwind: "$coachInfo",
+      },
+      {
+        $project: {
+          team_name: 1,
+          age_group: 1,
+          practice_length: 1,
+          minimum_length: 1,
+          no_of_players: 1,
+          practice_start_time: 1,
+          practice_end_time: 1,
+          preferred_field_size: 1,
+          preferred_days: 1,
+          is_travelling: 1,
+          travelling_date: 1,
+          region: 1,
+          team_level: 1,
+          gender: 1,
+          is_active: 1,
+          created_at: 1,
+          updated_at: 1,
+          deleted_at: 1,
+          coach_id: "$coachInfo",
+          club_id: 1,
+          coach_name: {
+            $concat: [
+              { $ifNull: ["$coachInfo.first_name", ""] },  // If first_name is null, use an empty string
+              " ",
+              { $ifNull: ["$coachInfo.last_name", ""] }    // If last_name is null, use an empty string
+            ]
+          },
+        },
+      },
+      {
+        $match: query,
+      },
+      {
+        $sort: sortOption,
+      },
+      {
+        $skip: (currentPage - 1) * pageSize,
+      },
+      {
+        $limit: pageSize,
+      },
+    ]);
 
     if (!teams || teams.length === 0) {
-      return res.status(404).json({ success: false, message: "No active teams found for the club" });
+      return res.status(200).json({ success: false, message: "No active teams found for the club" });
     }
 
+    // No need for additional sorting by coach name as it's already handled in the MongoDB query
     return res.status(200).json({
       success: true,
       message: "Teams list for the club",
@@ -293,7 +340,7 @@ exports.getTeamsList = async (req, res) => {
     const clubId = req.params.club_id;
 
 
-    const teams = await Team.find({ club_id: clubId, deleted_at: { $in: [null, undefined] }, }).sort({ team_name: 1 })
+    const teams = await Team.find({ club_id: clubId, deleted_at: { $in: [null, undefined] }, }).populate("coach_id").sort({ team_name: 1 })
 
     if (!teams || teams.length == 0) {
       return res.status(404).json({ success: false, message: "No active teams found " });
@@ -476,5 +523,65 @@ exports.activateOrDeactivateTeam = async (req, res) => {
   } catch (error) {
     console.error("Error in activate/deactivate Team:", error);
     return res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+exports.teamsByCoach = async (req, res) => {
+  try {
+    const clubId = req.query.club_id; // Assuming the club_id is passed as a query parameter
+
+    const results = await Team.aggregate([
+      {
+        $match: {
+          club_id: new ObjectId(clubId), // Convert to ObjectId
+          coach_id: { $ne: null } // Ensure coach_id is not null
+        }
+      },
+      {
+        $group: {
+          _id: "$coach_id",        // Group by coach_id
+          teams: { $push: "$$ROOT" } // Push the entire team document into an array
+        }
+      },
+      {
+        $lookup: {
+          from: "coaches", // The collection name for coaches
+          localField: "_id", // coach_id from the group stage
+          foreignField: "_id", // coach_id in the Coach collection
+          as: "coach_info" // Resulting array with coach info
+        }
+      },
+      {
+        $unwind: "$coach_info" // Unwind the coach_info array to get a single object
+      },
+      {
+        $addFields: {
+          coach_name: { 
+            $concat: ["$coach_info.first_name", " ", "$coach_info.last_name"]
+          }, // Concatenate first_name and last_name to form coach_name
+          teamCount: { $size: "$teams" } // Add a field with the number of teams
+        }
+      },
+      {
+        $sort: {
+          teamCount: -1, // Sort by the number of teams in descending order
+          "teams.team_name": 1 // Sort teams within each group by team_name in ascending order
+        }
+      },
+      {
+        $project: {
+          _id: 0, // Exclude _id if you don't want it in the final output
+          coach_id: "$_id", // Include coach_id in the output
+          coach_name: 1,
+          teamCount: 1,
+          teams: 1 // Include the teams array last
+        }
+      }
+    ]);
+    
+    res.status(200).json(results);
+  } catch (error) {
+    console.log(error)
+    res.status(500).json({ error: 'An error occurred while fetching the data.' });
   }
 };

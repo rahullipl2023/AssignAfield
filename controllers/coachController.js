@@ -309,7 +309,7 @@ exports.importCoaches = async (req, res) => {
         coachData.is_excel = true;
 
         // Check if coach with the same email and club ID already exists
-        const existingCoach = await Coach.findOne({ email: coachData.email, club_id, is_active: true, deleted_at: null });
+        const existingCoach = await Coach.findOne({ email: coachData.email, first_name: coachData.first_name.trim(), last_name: coachData.last_name.trim(), club_id, is_active: true, deleted_at: null });
 
         if (!existingCoach) {
           // Create coach if it doesn't exist

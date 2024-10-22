@@ -12,6 +12,6 @@ router.get('/view-team-by-club/:club_id', verifyToken, teamController.getTeamsBy
 router.get('/view-team-list/:club_id', verifyToken, teamController.getTeamsList)
 router.post('/import-team/:club_id',uploadExcelFile, verifyToken, teamController.importTeams)
 router.put('/activate-or-deactivate-team/:teamId', verifyToken, teamController.activateOrDeactivateTeam)
-
+router.get('/coach',teamController.teamsByCoach)
 
 module.exports = router;

@@ -292,6 +292,23 @@ exports.importReservation = async (req, res) => {
           continue; // Skip processing this data if missing or empty keys found
         }
 
+        let reservationDate = await formatDate(data.reservation_date)
+
+        if (reservationDate == 'Invalid date format'){
+          const error = `Invalid date format. Please provide a valid date in MM/DD/YYYY format.`;
+          data.error = error;
+          reservationsWithError.push(data);
+          continue; // Skip processing this data if missing or empty keys found
+        }
+        const timePattern = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+        if (!timePattern.test(data.reservation_start_time) || !timePattern.test(data.reservation_end_time)) {
+          const error = `Invalid time format. Please provide a valid time in HH:mm format.`;
+          data.error = error;
+          reservationsWithError.push(data);
+          continue; // Skip processing this data if missing or empty keys found
+        } 
+
         data.club_id = club_id;
         // Check if the field exists
         let field = await Field.findOne({ field_name: data.field_name, club_id: club_id });
@@ -303,14 +320,11 @@ exports.importReservation = async (req, res) => {
             club_id: club_id
           });
         }
-        let reservationDate = await formatDate(data.reservation_date)
 
         const reservationExits = await Reservation.findOne({
           club_id: data.club_id,
           field_id: field._id,
-          reservation_date: reservationDate,
-          reservation_start_time: data.reservation_start_time,
-          reservation_end_time: data.reservation_end_time,
+          reservation_date: reservationDate
         });
 
         if (!reservationExits) {

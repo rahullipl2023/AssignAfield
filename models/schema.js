@@ -158,6 +158,11 @@ const userSchema = new mongoose.Schema({
   club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
 });
 
+const reservationTimePortionSchema = new mongoose.Schema({
+  start_time: String,
+  end_time: String,
+  remaining_portion: String
+})
 // Schema for booked slots
 const slotSchema = new mongoose.Schema({
   club_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
@@ -165,7 +170,7 @@ const slotSchema = new mongoose.Schema({
   reservation_date: String,
   field_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Field' },
   coach_available: { type: Boolean, default: true },
-  reservation_time_portion: Array, // [{start_time : "", end_time : "", remainning_portion: ""}] 
+  reservation_time_portion: [reservationTimePortionSchema],
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
   deleted_at: Date,
